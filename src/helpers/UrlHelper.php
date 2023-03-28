@@ -116,8 +116,8 @@ class UrlHelper extends CraftUrlHelper
                 }
             }
         }
-        // Ensure that any spaces in the URL are encoded
-        $url = str_replace(' ', '%20', $url);
+        // Ensure that the URL is encoded
+        $url = self::encodePath($url);
 
         // Handle trailing slashes properly for generated URLs
         $generalConfig = Craft::$app->getConfig()->getGeneral();
@@ -182,6 +182,42 @@ class UrlHelper extends CraftUrlHelper
 
     // Protected Methods
     // =========================================================================
+
+    /**
+     * Encode path part of URL
+     *
+     * @param $url
+     *
+     * @return string
+     */
+    protected static function encodePath(string $url): string
+    {
+
+        $url_parts = self::decomposeUrl($url);
+
+        if (!empty($url_parts['path']))
+        {
+            $url_parts['path'] = join('/', array_map('rawurlencode', explode('/', $url_parts['path'])));
+        }
+
+        $url = self::recomposeUrl($url_parts);
+
+        return $url;
+    }
+
+
+    /**
+     * Recompose a url from prefix, path, and suffix
+     *
+     * @param $url
+     *
+     * @return string
+     */
+    protected static function recomposeUrl(array $url_parts): string
+    {
+        return implode($url_parts);
+    }
+
 
     /**
      * Decompose a url into a prefix, path, and suffix
