@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -30,9 +30,9 @@ class MetaLink extends MetaItem
     // Constants
     // =========================================================================
 
-    const ITEM_TYPE = 'MetaLink';
+    public const ITEM_TYPE = 'MetaLink';
 
-    const ARRAY_PROPERTIES = [
+    public const ARRAY_PROPERTIES = [
         'href',
     ];
 
@@ -50,7 +50,7 @@ class MetaLink extends MetaItem
      */
     public $href;
     /**
-     * @var string
+     * @var string|array
      */
     public $hreflang;
     /**
@@ -116,13 +116,13 @@ class MetaLink extends MetaItem
     {
         $rules = parent::rules();
         $rules = array_merge($rules, [
-            [['crossorigin', 'href', 'hreflang', 'media', 'rel', 'sizes', 'type'], 'string'],
+            [['crossorigin', 'media', 'rel', 'sizes', 'type'], 'string'],
             ['crossorigin', 'in', 'range' => [
                 'anonymous',
-                'use-credentials'
+                'use-credentials',
             ]],
-            ['href', 'url'],
-            ['hreflang', 'string'],
+            ['href', 'validateStringOrArray'],
+            ['hreflang', 'validateStringOrArray'],
             ['rel', 'required'],
             ['rel', 'in', 'range' => [
                 'alternate',
@@ -131,6 +131,7 @@ class MetaLink extends MetaItem
                 'creator',
                 'dns-prefetch',
                 'help',
+                'home',
                 'icon',
                 'license',
                 'next',
@@ -196,11 +197,16 @@ class MetaLink extends MetaItem
     public function render(array $params = []): string
     {
         $html = '';
+        $linebreak = '';
+        // If `devMode` is enabled, make it more human-readable
+        if (Seomatic::$devMode) {
+            $linebreak = PHP_EOL;
+        }
         $configs = $this->tagAttributesArray();
         foreach ($configs as $config) {
             if ($this->prepForRender($config)) {
                 ksort($config);
-                $html .= Html::tag('link', '', $config);
+                $html .= Html::tag('link', '', $config) . $linebreak;
             }
         }
 

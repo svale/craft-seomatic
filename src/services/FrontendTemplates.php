@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -33,19 +33,19 @@ class FrontendTemplates extends Component
     // Constants
     // =========================================================================
 
-    const FRONTENDTEMPLATES_CONTAINER = Seomatic::SEOMATIC_HANDLE . EditableTemplate::TEMPLATE_TYPE;
+    public const FRONTENDTEMPLATES_CONTAINER = Seomatic::SEOMATIC_HANDLE . EditableTemplate::TEMPLATE_TYPE;
 
-    const HUMANS_TXT_HANDLE = 'humans';
-    const ROBOTS_TXT_HANDLE = 'robots';
-    const ADS_TXT_HANDLE = 'ads';
-    const SECURITY_TXT_HANDLE = 'security';
+    public const HUMANS_TXT_HANDLE = 'humans';
+    public const ROBOTS_TXT_HANDLE = 'robots';
+    public const ADS_TXT_HANDLE = 'ads';
+    public const SECURITY_TXT_HANDLE = 'security';
 
-    const GLOBAL_FRONTENDTEMPLATE_CACHE_TAG = 'seomatic_frontendtemplate';
-    const FRONTENDTEMPLATE_CACHE_TAG = 'seomatic_frontendtemplate_';
+    public const GLOBAL_FRONTENDTEMPLATE_CACHE_TAG = 'seomatic_frontendtemplate';
+    public const FRONTENDTEMPLATE_CACHE_TAG = 'seomatic_frontendtemplate_';
 
-    const CACHE_KEY = 'seomatic_frontendtemplate_';
+    public const CACHE_KEY = 'seomatic_frontendtemplate_';
 
-    const IGNORE_DB_ATTRIBUTES = [
+    public const IGNORE_DB_ATTRIBUTES = [
         'id',
         'dateCreated',
         'dateUpdated',
@@ -56,7 +56,7 @@ class FrontendTemplates extends Component
     // =========================================================================
 
     /**
-     * @var FrontendTemplateContainer
+     * @var FrontendTemplateContainer|null
      */
     public $frontendTemplateContainer;
 
@@ -116,7 +116,7 @@ class FrontendTemplates extends Component
             Event::on(
                 UrlManager::class,
                 UrlManager::EVENT_REGISTER_SITE_URL_RULES,
-                function (RegisterUrlRulesEvent $event) {
+                function(RegisterUrlRulesEvent $event) {
                     Craft::debug(
                         'UrlManager::EVENT_REGISTER_SITE_URL_RULES',
                         __METHOD__
@@ -139,7 +139,6 @@ class FrontendTemplates extends Component
         $rules = [];
         foreach ($this->frontendTemplateContainer->data as $frontendTemplate) {
             if ($frontendTemplate->include) {
-                /** @var $frontendTemplate EditableTemplate */
                 $rules = array_merge(
                     $rules,
                     $frontendTemplate->routeRules()
@@ -178,14 +177,14 @@ class FrontendTemplates extends Component
         $cache = Craft::$app->getCache();
         $html = $cache->getOrSet(
             self::CACHE_KEY . $template . $siteId,
-            function () use ($template, $params) {
+            function() use ($template, $params) {
                 Craft::info(
                     'Frontend template cache miss: ' . $template,
                     __METHOD__
                 );
                 $html = '';
                 if (!empty($this->frontendTemplateContainer->data[$template])) {
-                    /** @var $frontendTemplate EditableTemplate */
+                    /** @var EditableTemplate $frontendTemplate */
                     $frontendTemplate = $this->frontendTemplateContainer->data[$template];
                     // Special-case for the Robots.text template, to upgrade it
                     if ($template === FrontendTemplates::ROBOTS_TXT_HANDLE) {
@@ -219,7 +218,6 @@ class FrontendTemplates extends Component
     {
         $frontendTemplate = null;
         if (!empty($this->frontendTemplateContainer) && !empty($this->frontendTemplateContainer->data)) {
-            /** @var  $frontendTemplate EditableTemplate */
             foreach ($this->frontendTemplateContainer->data as $frontendTemplate) {
                 if ($key === $frontendTemplate->handle) {
                     return $frontendTemplate;

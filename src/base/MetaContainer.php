@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -44,17 +44,19 @@ abstract class MetaContainer extends SeomaticContainer implements MetaContainerI
     public function render(array $params = []): string
     {
         $html = '';
-
         if ($this->prepForInclusion()) {
             /** @var MetaItem $metaItemModel */
             foreach ($this->data as $metaItemModel) {
                 if ($metaItemModel->include) {
-                    $html .= $metaItemModel->render($params);
+                    $renderedTag = $metaItemModel->render($params);
+                    if (!empty($renderedTag)) {
+                        $html .= $metaItemModel->render($params);
+                    }
                 }
             }
         }
 
-        return $html;
+        return trim($html);
     }
 
     /**
@@ -65,7 +67,6 @@ abstract class MetaContainer extends SeomaticContainer implements MetaContainerI
         $htmlArray = [];
 
         if ($this->prepForInclusion()) {
-            /** @var  $metaItemModel MetaItem */
             foreach ($this->data as $metaItemModel) {
                 if ($metaItemModel->include) {
                     $htmlArray[$metaItemModel->key] = $metaItemModel->renderAttributes($params);

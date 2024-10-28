@@ -17,10 +17,6 @@
     {{ seomatic.vite.register('src/js/dashboard.js', false, tagOptions, tagOptions) }}
 {% endblock %}
 
-{% block contextMenu %}
-    {% include "seomatic/settings/_includes/sites-menu.twig" %}
-{% endblock %}
-
 {%- macro setupGradeColor(setupGrades, score) -%}
     {% apply spaceless %}
         {% set color = setupGrades[0].color %}
@@ -70,12 +66,12 @@
     <div id="cp-nav-content">
         <div class="field readable">
             {% if showWelcome %}
-                <confetti></confetti>
+                <confetti-party></confetti-party>
                 <div class="readable" style="text-align:center; margin:0 auto; padding: 5% 10%;">
-                    <img src="{{ baseAssetsUrl ~ '/img/Seomatic-icon.svg' }}"
+                    <img class="inline-block" src="{{ baseAssetsUrl ~ '/img/Seomatic-icon.svg' }}"
                          width="30%" height="auto"/>
                     <h2>Thanks for using SEOmatic!</h2>
-                    <p>SEOmatic facilitates modern SEO best practices & implementation for Craft CMS 4. It is a turnkey
+                    <p>SEOmatic facilitates modern SEO best practices & implementation for Craft CMS 5. It is a turnkey
                         SEO system that is comprehensive, powerful, and flexible.</p>
                     <p>We hope you love it! For more information, please <a href="{{ docsUrl }}" target="_blank"
                                                                             rel="noopener">see the documentation</a>.

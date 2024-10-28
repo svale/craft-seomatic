@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -11,11 +11,10 @@
 
 namespace nystudio107\seomatic\models;
 
-use nystudio107\seomatic\Seomatic;
+use Craft;
 use nystudio107\seomatic\base\MetaContainer;
 use nystudio107\seomatic\helpers\ImageTransform as ImageTransformHelper;
-
-use Craft;
+use nystudio107\seomatic\Seomatic;
 use yii\caching\TagDependency;
 
 /**
@@ -28,7 +27,7 @@ class MetaTagContainer extends MetaContainer
     // Constants
     // =========================================================================
 
-    const CONTAINER_TYPE = 'MetaTagContainer';
+    public const CONTAINER_TYPE = 'MetaTagContainer';
 
     // Public Properties
     // =========================================================================
@@ -49,21 +48,20 @@ class MetaTagContainer extends MetaContainer
     public function includeMetaData($dependency)
     {
         Craft::beginProfile('MetaTagContainer::includeMetaData', __METHOD__);
-        $uniqueKey = $this->handle.$dependency->tags[3];
+        $uniqueKey = $this->handle . $dependency->tags[3];
         $cache = Craft::$app->getCache();
         if ($this->clearCache) {
             TagDependency::invalidate($cache, $dependency->tags[3]);
         }
         $tagData = $cache->getOrSet(
-            self::CONTAINER_TYPE.$uniqueKey,
-            function () use ($uniqueKey) {
+            self::CONTAINER_TYPE . $uniqueKey,
+            function() use ($uniqueKey) {
                 Craft::info(
-                    self::CONTAINER_TYPE.' cache miss: '.$uniqueKey,
+                    self::CONTAINER_TYPE . ' cache miss: ' . $uniqueKey,
                     __METHOD__
                 );
                 $tagData = [];
                 if ($this->prepForInclusion()) {
-                    /** @var $metaTagModel MetaTag */
                     foreach ($this->data as $metaTagModel) {
                         if ($metaTagModel->include) {
                             $configs = $metaTagModel->tagAttributesArray();
@@ -109,6 +107,7 @@ class MetaTagContainer extends MetaContainer
     {
         parent::normalizeContainerData();
 
+        /** @var array $config */
         foreach ($this->data as $key => $config) {
             $config['key'] = $key;
             $this->data[$key] = MetaTag::create($key, $config);

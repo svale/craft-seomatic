@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -47,10 +47,10 @@ return [
                     'id' => '{{ parseEnv(seomatic.site.identity.genericUrl) }}#identity',
                 ],
                 'creator' => [
-                    'id' => '{{ parseEnv(seomatic.site.identity.genericUrl) }}#creator',
+                    'id' => '{{ parseEnv(seomatic.site.creator.genericUrl) }}#creator',
                 ],
                 'publisher' => [
-                    'id' => '{{ parseEnv(seomatic.site.identity.genericUrl) }}#creator',
+                    'id' => '{{ parseEnv(seomatic.site.creator.genericUrl) }}#creator',
                 ],
                 'image' => [
                     'type' => 'ImageObject',
@@ -65,7 +65,7 @@ return [
                 'offers' => [
                     'type' => 'Offer',
                     'url' => '{{ seomatic.meta.canonicalUrl }}',
-                    'price' => '{{ product.getPrice()|number_format(2, ".", "") }}',
+                    'price' => '{{ product.getDefaultVariant().getSalePrice()|number_format(2, ".", "") }}',
                     'priceCurrency' => '{{ craft.commerce.paymentCurrencies.primaryPaymentCurrencyIso() }}',
                     'offeredBy' => [
                         'id' => '{{ parseEnv(seomatic.site.identity.genericUrl) }}#identity',
@@ -73,7 +73,7 @@ return [
                     'seller' => [
                         'id' => '{{ parseEnv(seomatic.site.identity.genericUrl) }}#identity',
                     ],
-                    'availability' => 'http://schema.org/{% if product.getIsAvailable() %}InStock{% else %}OutOfStock{% endif % }}',
+                    'availability' => 'http://schema.org/{% if product.getIsAvailable() %}InStock{% else %}OutOfStock{% endif %}',
                 ],
             ],
         ],

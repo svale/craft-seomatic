@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -11,8 +11,9 @@
 
 namespace nystudio107\seomatic\models\metatag;
 
-use nystudio107\seomatic\models\MetaTag;
+use craft\validators\UrlValidator;
 use nystudio107\seomatic\helpers\UrlHelper;
+use nystudio107\seomatic\models\MetaTag;
 
 /**
  * @author    nystudio107
@@ -24,7 +25,7 @@ class OgImageTag extends MetaTag
     // Constants
     // =========================================================================
 
-    const ITEM_TYPE = 'OgImageTag';
+    public const ITEM_TYPE = 'OgImageTag';
 
     // Static Methods
     // =========================================================================
@@ -51,7 +52,7 @@ class OgImageTag extends MetaTag
         $rules = parent::rules();
         $rules = array_merge($rules, [
             // content in this case should be a fully qualified URL
-            [['content'], 'url'],
+            [['content'], UrlValidator::class],
         ]);
 
         return $rules;

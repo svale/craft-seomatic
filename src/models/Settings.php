@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -94,7 +94,7 @@ class Settings extends VarsModel
     public array $sidebarDisplayPreviewTypes = [
         'google',
         'twitter',
-        'facebook'
+        'facebook',
     ];
 
     /**
@@ -158,6 +158,11 @@ class Settings extends VarsModel
     public bool $addXDefaultHrefLang = true;
 
     /**
+     * @var int The site to use for the `x-default` hreflang tag (0 defaults to the Primary site)
+     */
+    public int $xDefaultSite = 0;
+
+    /**
      * @var bool Whether to dynamically include hreflang tags on paginated pages
      */
     public bool $addPaginatedHreflang = true;
@@ -198,19 +203,24 @@ class Settings extends VarsModel
     public bool $generatorEnabled = true;
 
     /**
-     * @var string
+     * @var string|array
      * SEOmatic uses the Craft `siteUrl` to generate the external URLs.  If you
      * are using it in a non-standard environment, such as a headless GraphQL or
      * ElementAPI server, you can override what it uses for the `siteUrl` below.
-     */
-    public string $siteUrlOverride = '';
+     * This can be either a simple string, or an array of strings indexed by the site
+     * handle, for multi-site setups. e.g.:
+     * 'siteUrlOverride' => [
+     *     'default' => 'http://example.com/',
+     *     'spanish' => 'http://example.com/es/',
+     * ],     */
+    public string|array $siteUrlOverride = '';
 
     /**
-     * @var int
+     * @var int|null
      * The duration of the SEOmatic meta cache in seconds.  Null means always cached until explicitly broken
      * If devMode is on, caches last 30 seconds.
      */
-    public int $metaCacheDuration = 0;
+    public ?int $metaCacheDuration = 0;
 
     /**
      * @var bool Determines whether the meta container endpoint should be enabled for anonymous frontend access
@@ -226,6 +236,11 @@ class Settings extends VarsModel
      * @var bool Determines whether the SEO File Link endpoint should be enabled for anonymous frontend access
      */
     public bool $enableSeoFileLinkEndpoint = false;
+
+    /**
+     * @var bool Determines whether the SEOmatic debug toolbar panel should be added to the Yii2 debug toolbar
+     */
+    public bool $enableDebugToolbarPanel = true;
 
     /**
      * @var SeoElementInterface[] The default SeoElement type classes
@@ -248,11 +263,8 @@ class Settings extends VarsModel
     public function __construct($config = [])
     {
         if (!empty($config)) {
-            if (!isset($config['metaCacheDuration'])) {
-                $config['metaCacheDuration'] = 0;
-            }
             // Normalize the metaCacheDuration to an integer
-            if ($config['metaCacheDuration'] === null || $config['metaCacheDuration'] === 'null') {
+            if (empty($config['metaCacheDuration']) || $config['metaCacheDuration'] === 'null') {
                 $config['metaCacheDuration'] = 0;
             }
         }
@@ -283,8 +295,10 @@ class Settings extends VarsModel
                     'addPaginatedHreflang',
                     'manuallySetEnvironment',
                 ],
-                'boolean'
+                'boolean',
             ],
+            ['xDefaultSite', 'integer'],
+            ['xDefaultSite', 'default', 'value' => 0],
             ['cspNonce', 'string'],
             ['cspNonce', 'in', 'range' => [
                 '',
@@ -305,8 +319,9 @@ class Settings extends VarsModel
                     'lowercaseCanonicalUrl',
                     'truncateTitleTags',
                     'truncateDescriptionTags',
+                    'enableDebugToolbarPanel',
                 ],
-                'boolean'
+                'boolean',
             ],
             [['devModeTitlePrefix', 'cpTitlePrefix', 'devModeCpTitlePrefix'], 'string'],
             ['separatorChar', 'string'],
@@ -315,7 +330,7 @@ class Settings extends VarsModel
             ['maxTitleLength', 'default', 'value' => 70],
             ['maxDescriptionLength', 'integer', 'min' => 10],
             ['maxDescriptionLength', 'default', 'value' => 155],
-            ['siteUrlOverride', 'string'],
+            ['siteUrlOverride', 'safe'],
             ['siteUrlOverride', 'default', 'value' => ''],
             [
                 [
@@ -345,7 +360,7 @@ class Settings extends VarsModel
                 'attributes' => [
                     'environment',
                 ],
-            ]
+            ],
         ]);
     }
 }

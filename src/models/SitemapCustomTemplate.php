@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -52,17 +52,17 @@ class SitemapCustomTemplate extends FrontendTemplate implements SitemapInterface
      * });
      * ```
      */
-    const EVENT_REGISTER_SITEMAP_URLS = 'registerSitemapUrls';
+    public const EVENT_REGISTER_SITEMAP_URLS = 'registerSitemapUrls';
 
-    const TEMPLATE_TYPE = 'SitemapCustomTemplate';
+    public const TEMPLATE_TYPE = 'SitemapCustomTemplate';
 
-    const CACHE_KEY = 'seomatic_sitemap_';
+    public const CACHE_KEY = 'seomatic_sitemap_';
 
-    const SITEMAP_CACHE_TAG = 'seomatic_sitemap_';
+    public const SITEMAP_CACHE_TAG = 'seomatic_sitemap_';
 
-    const CUSTOM_HANDLE = 'custom';
+    public const CUSTOM_HANDLE = 'custom';
 
-    const CUSTOM_SCOPE = 'global';
+    public const CUSTOM_SCOPE = 'global';
 
     // Static Methods
     // =========================================================================
@@ -131,7 +131,7 @@ class SitemapCustomTemplate extends FrontendTemplate implements SitemapInterface
             ],
         ]);
 
-        return $cache->getOrSet(self::CACHE_KEY . $groupId . self::CUSTOM_SCOPE . $handle . $siteId, function () use (
+        return $cache->getOrSet(self::CACHE_KEY . $groupId . self::CUSTOM_SCOPE . $handle . $siteId, function() use (
             $handle,
             $siteId
         ) {
@@ -149,54 +149,52 @@ class SitemapCustomTemplate extends FrontendTemplate implements SitemapInterface
             if ($metaBundle === null) {
                 throw new NotFoundHttpException(Craft::t('seomatic', 'Page not found.'));
             }
-            if ($metaBundle) {
-                $urlsetLine = '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"';
-                $urlsetLine .= '>';
-                $lines[] = $urlsetLine;
-                // If it's null, just throw a 404
-                if ($metaBundle->metaSiteVars->additionalSitemapUrls === null) {
-                    throw new NotFoundHttpException(Craft::t('seomatic', 'Page not found.'));
-                }
-                $additionalSitemapUrls = $metaBundle->metaSiteVars->additionalSitemapUrls;
-                $additionalSitemapUrls = empty($additionalSitemapUrls) ? [] : $additionalSitemapUrls;
-                // Allow plugins/modules to add custom URLs
-                $event = new RegisterSitemapUrlsEvent([
-                    'sitemaps' => $additionalSitemapUrls,
-                    'siteId' => $metaBundle->sourceSiteId,
-                ]);
-                $this->trigger(self::EVENT_REGISTER_SITEMAP_URLS, $event);
-                $additionalSitemapUrls = array_filter($event->sitemaps);
-                // Output the sitemap entry
-                foreach ($additionalSitemapUrls as $additionalSitemapUrl) {
-                    $loc = MetaValueHelper::parseString($additionalSitemapUrl['loc']);
-                    $url = UrlHelper::siteUrl(
-                        $loc,
-                        null,
-                        null,
-                        $metaBundle->sourceSiteId
-                    );
-                    $dateUpdated = $additionalSitemapUrl['lastmod']
-                        ?? $metaBundle->metaSiteVars->additionalSitemapUrlsDateUpdated
-                        ?? new DateTime;
-                    $lines[] = '<url>';
-                    // Standard sitemap key/values
-                    $lines[] = '<loc>';
-                    $lines[] = Html::encode($url);
-                    $lines[] = '</loc>';
-                    $lines[] = '<lastmod>';
-                    $lines[] = $dateUpdated->format(DateTime::W3C);
-                    $lines[] = '</lastmod>';
-                    $lines[] = '<changefreq>';
-                    $lines[] = $additionalSitemapUrl['changefreq'];
-                    $lines[] = '</changefreq>';
-                    $lines[] = '<priority>';
-                    $lines[] = $additionalSitemapUrl['priority'];
-                    $lines[] = '</priority>';
-                    $lines[] = '</url>';
-                }
-                // Sitemap index closing tag
-                $lines[] = '</urlset>';
+            $urlsetLine = '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"';
+            $urlsetLine .= '>';
+            $lines[] = $urlsetLine;
+            // If it's null, just throw a 404
+            if ($metaBundle->metaSiteVars->additionalSitemapUrls === null) {
+                throw new NotFoundHttpException(Craft::t('seomatic', 'Page not found.'));
             }
+            $additionalSitemapUrls = $metaBundle->metaSiteVars->additionalSitemapUrls;
+            $additionalSitemapUrls = empty($additionalSitemapUrls) ? [] : $additionalSitemapUrls;
+            // Allow plugins/modules to add custom URLs
+            $event = new RegisterSitemapUrlsEvent([
+                'sitemaps' => $additionalSitemapUrls,
+                'siteId' => $metaBundle->sourceSiteId,
+            ]);
+            $this->trigger(self::EVENT_REGISTER_SITEMAP_URLS, $event);
+            $additionalSitemapUrls = array_filter($event->sitemaps);
+            // Output the sitemap entry
+            foreach ($additionalSitemapUrls as $additionalSitemapUrl) {
+                $loc = MetaValueHelper::parseString($additionalSitemapUrl['loc']);
+                $url = UrlHelper::siteUrl(
+                    $loc,
+                    null,
+                    null,
+                    $metaBundle->sourceSiteId
+                );
+                $dateUpdated = $additionalSitemapUrl['lastmod']
+                    ?? $metaBundle->metaSiteVars->additionalSitemapUrlsDateUpdated
+                    ?? new DateTime();
+                $lines[] = '<url>';
+                // Standard sitemap key/values
+                $lines[] = '<loc>';
+                $lines[] = Html::encode($url);
+                $lines[] = '</loc>';
+                $lines[] = '<lastmod>';
+                $lines[] = $dateUpdated->format(DateTime::W3C);
+                $lines[] = '</lastmod>';
+                $lines[] = '<changefreq>';
+                $lines[] = $additionalSitemapUrl['changefreq'];
+                $lines[] = '</changefreq>';
+                $lines[] = '<priority>';
+                $lines[] = $additionalSitemapUrl['priority'];
+                $lines[] = '</priority>';
+                $lines[] = '</url>';
+            }
+            // Sitemap index closing tag
+            $lines[] = '</urlset>';
 
             return implode('', $lines);
         }, Seomatic::$cacheDuration, $dependency);

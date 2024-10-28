@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -14,12 +14,16 @@ namespace nystudio107\seomatic\services;
 use Craft;
 use craft\base\Component;
 use craft\base\Element;
+use craft\base\ElementInterface;
 use craft\commerce\Plugin as CommercePlugin;
 use craft\console\Application as ConsoleApplication;
 use craft\elements\GlobalSet;
+use craft\helpers\ElementHelper;
+use craft\web\UrlManager;
 use nystudio107\seomatic\base\MetaContainer;
 use nystudio107\seomatic\base\MetaItem;
 use nystudio107\seomatic\events\InvalidateContainerCachesEvent;
+use nystudio107\seomatic\events\MetaBundleDebugDataEvent;
 use nystudio107\seomatic\helpers\ArrayHelper;
 use nystudio107\seomatic\helpers\DynamicMeta as DynamicMetaHelper;
 use nystudio107\seomatic\helpers\Field as FieldHelper;
@@ -43,9 +47,11 @@ use nystudio107\seomatic\seoelements\SeoProduct;
 use nystudio107\seomatic\Seomatic;
 use nystudio107\seomatic\services\JsonLd as JsonLdService;
 use nystudio107\seomatic\variables\SeomaticVariable;
+use Throwable;
 use yii\base\Exception;
 use yii\base\InvalidConfigException;
 use yii\caching\TagDependency;
+use yii\web\BadRequestHttpException;
 use function is_array;
 use function is_object;
 
@@ -62,16 +68,16 @@ class MetaContainers extends Component
     // Constants
     // =========================================================================
 
-    const GLOBAL_METACONTAINER_CACHE_TAG = 'seomatic_metacontainer';
-    const METACONTAINER_CACHE_TAG = 'seomatic_metacontainer_';
+    public const GLOBAL_METACONTAINER_CACHE_TAG = 'seomatic_metacontainer';
+    public const METACONTAINER_CACHE_TAG = 'seomatic_metacontainer_';
 
-    const CACHE_KEY = 'seomatic_metacontainer_';
-    const INVALID_RESPONSE_CACHE_KEY = 'seomatic_invalid_response';
-    const GLOBALS_CACHE_KEY = 'parsed_globals_';
-    const SCRIPTS_CACHE_KEY = 'body_scripts_';
+    public const CACHE_KEY = 'seomatic_metacontainer_';
+    public const INVALID_RESPONSE_CACHE_KEY = 'seomatic_invalid_response';
+    public const GLOBALS_CACHE_KEY = 'parsed_globals_';
+    public const SCRIPTS_CACHE_KEY = 'body_scripts_';
 
     /** @var array Rules for replacement values on arbitrary empty values */
-    const COMPOSITE_SETTING_LOOKUP = [
+    public const COMPOSITE_SETTING_LOOKUP = [
         'ogImage' => [
             'metaBundleSettings.ogImageSource' => 'sameAsSeo.seoImage',
         ],
@@ -94,23 +100,39 @@ class MetaContainers extends Component
      * });
      * ```
      */
-    const EVENT_INVALIDATE_CONTAINER_CACHES = 'invalidateContainerCaches';
+    public const EVENT_INVALIDATE_CONTAINER_CACHES = 'invalidateContainerCaches';
+
+    /**
+     * @event MetaBundleDebugDataEvent The event that is triggered to record MetaBundle
+     * debug data
+     *
+     * ---
+     * ```php
+     * use nystudio107\seomatic\events\MetaBundleDebugDataEvent;
+     * use nystudio107\seomatic\services\MetaContainers;
+     * use yii\base\Event;
+     * Event::on(MetaContainers::class, MetaContainers::EVENT_METABUNDLE_DEBUG_DATA, function(MetaBundleDebugDataEvent $e) {
+     *     // Do something with the MetaBundle debug data
+     * });
+     * ```
+     */
+    public const EVENT_METABUNDLE_DEBUG_DATA = 'metaBundleDebugData';
 
     // Public Properties
     // =========================================================================
 
     /**
-     * @var MetaGlobalVars
+     * @var MetaGlobalVars|null
      */
     public $metaGlobalVars;
 
     /**
-     * @var MetaSiteVars
+     * @var MetaSiteVars|null
      */
     public $metaSiteVars;
 
     /**
-     * @var MetaSitemapVars
+     * @var MetaSitemapVars|null
      */
     public $metaSitemapVars;
 
@@ -124,13 +146,13 @@ class MetaContainers extends Component
      */
     public $cachedJsonLdNonce;
 
+    /**
+     * @var MetaContainer[]|array|null
+     */
+    public $metaContainers = [];
+
     // Protected Properties
     // =========================================================================
-
-    /**
-     * @var MetaContainer
-     */
-    protected $metaContainers = [];
 
     /**
      * @var null|MetaBundle
@@ -165,55 +187,6 @@ class MetaContainers extends Component
     }
 
     /**
-     * Include any script body HTML
-     *
-     * @param int $bodyPosition
-     */
-    public function includeScriptBodyHtml(int $bodyPosition)
-    {
-        Craft::beginProfile('MetaContainers::includeScriptBodyHtml', __METHOD__);
-        $dependency = $this->containerDependency;
-        $uniqueKey = $dependency->tags[3] ?? self::GLOBALS_CACHE_KEY;
-        $uniqueKey .= $bodyPosition;
-        $scriptData = Craft::$app->getCache()->getOrSet(
-            self::GLOBALS_CACHE_KEY . $uniqueKey,
-            function () use ($uniqueKey, $bodyPosition) {
-                Craft::info(
-                    self::SCRIPTS_CACHE_KEY . ' cache miss: ' . $uniqueKey,
-                    __METHOD__
-                );
-                $scriptData = [];
-                $scriptContainers = $this->getContainersOfType(MetaScriptContainer::CONTAINER_TYPE);
-                foreach ($scriptContainers as $scriptContainer) {
-                    /** @var MetaScriptContainer $scriptContainer */
-                    if ($scriptContainer->include) {
-                        if ($scriptContainer->prepForInclusion()) {
-                            foreach ($scriptContainer->data as $metaScript) {
-                                /** @var MetaScript $metaScript */
-                                if (!empty($metaScript->bodyTemplatePath)
-                                    && ((int)$metaScript->bodyPosition === $bodyPosition)) {
-                                    $scriptData[] = $metaScript->renderBodyHtml();
-                                }
-                            }
-                        }
-                    }
-                }
-
-                return $scriptData;
-            },
-            Seomatic::$cacheDuration,
-            $dependency
-        );
-        // Output the script HTML
-        foreach ($scriptData as $script) {
-            if (is_string($script) && !empty($script)) {
-                echo $script;
-            }
-        }
-        Craft::endProfile('MetaContainers::includeScriptBodyHtml', __METHOD__);
-    }
-
-    /**
      * Return the containers of a specific type
      *
      * @param string $type
@@ -223,7 +196,7 @@ class MetaContainers extends Component
     public function getContainersOfType(string $type): array
     {
         $containers = [];
-        /** @var  $metaContainer MetaContainer */
+        /** @var MetaContainer $metaContainer */
         foreach ($this->metaContainers as $metaContainer) {
             if ($metaContainer::CONTAINER_TYPE === $type) {
                 $containers[] = $metaContainer;
@@ -239,12 +212,19 @@ class MetaContainers extends Component
     public function includeMetaContainers()
     {
         Craft::beginProfile('MetaContainers::includeMetaContainers', __METHOD__);
-        // If this page is paginated, we need to factor that into the cache key
-        // We also need to re-add the hreflangs
-        if ($this->paginationPage !== '1') {
-            if (Seomatic::$settings->addHrefLang && Seomatic::$settings->addPaginatedHreflang) {
-                DynamicMetaHelper::addMetaLinkHrefLang();
-            }
+        // Fire an 'metaBundleDebugData' event
+        if ($this->hasEventHandlers(self::EVENT_METABUNDLE_DEBUG_DATA)) {
+            $metaBundle = new MetaBundle([
+                'metaGlobalVars' => clone $this->metaGlobalVars,
+                'metaSiteVars' => clone $this->metaSiteVars,
+                'metaSitemapVars' => clone $this->metaSitemapVars,
+                'metaContainers' => $this->metaContainers,
+            ]);
+            $event = new MetaBundleDebugDataEvent([
+                'metaBundleCategory' => MetaBundleDebugDataEvent::COMBINED_META_BUNDLE,
+                'metaBundle' => $metaBundle,
+            ]);
+            $this->trigger(self::EVENT_METABUNDLE_DEBUG_DATA, $event);
         }
         // Add in our http headers
         DynamicMetaHelper::includeHttpHeaders();
@@ -272,7 +252,7 @@ class MetaContainers extends Component
         $uniqueKey = $dependency->tags[3] ?? self::GLOBALS_CACHE_KEY;
         list($this->metaGlobalVars, $this->metaSiteVars) = Craft::$app->getCache()->getOrSet(
             self::GLOBALS_CACHE_KEY . $uniqueKey,
-            function () use ($uniqueKey) {
+            function() use ($uniqueKey) {
                 Craft::info(
                     self::GLOBALS_CACHE_KEY . ' cache miss: ' . $uniqueKey,
                     __METHOD__
@@ -303,12 +283,12 @@ class MetaContainers extends Component
      *                                 should be factored into the preview
      */
     public function previewMetaContainers(
-        string $uri = '',
-        int    $siteId = null,
-        bool   $parseVariables = false,
-        bool   $includeElement = true
-    )
-    {
+        string            $uri = '',
+        int               $siteId = null,
+        bool              $parseVariables = false,
+        bool              $includeElement = true,
+        ?ElementInterface $element = null,
+    ) {
         // If we've already previewed the containers for this request, there's no need to do it again
         if (Seomatic::$previewingMetaContainers && !Seomatic::$headlessRequest) {
             return;
@@ -320,7 +300,7 @@ class MetaContainers extends Component
         }
         Seomatic::$previewingMetaContainers = true;
         $this->includeMatchedElement = $includeElement;
-        $this->loadMetaContainers($uri, $siteId);
+        $this->loadMetaContainers($uri, $siteId, $element);
         // Load in the right globals
         $twig = Craft::$app->getView()->getTwig();
         $globalSets = GlobalSet::findAll([
@@ -372,14 +352,19 @@ class MetaContainers extends Component
      *
      * @param string|null $uri
      * @param int|null $siteId
+     * @param ElementInterface|null $element
      */
-    public function loadMetaContainers(string $uri = '', int $siteId = null)
+    public function loadMetaContainers(?string $uri = '', int $siteId = null, ?ElementInterface $element = null)
     {
         Craft::beginProfile('MetaContainers::loadMetaContainers', __METHOD__);
         // Avoid recursion
         if (!Seomatic::$loadingMetaContainers) {
             Seomatic::$loadingMetaContainers = true;
             $this->setMatchedElement($uri, $siteId);
+            // If this is a draft or revision we're previewing, swap it in so they see the draft preview image & data
+            if ($element && ElementHelper::isDraftOrRevision($element)) {
+                Seomatic::setMatchedElement($element);
+            }
             // Get the cache tag for the matched meta bundle
             $metaBundle = $this->getMatchedMetaBundle();
             $metaBundleSourceId = '';
@@ -410,8 +395,17 @@ class MetaContainers extends Component
                     Seomatic::$previewingMetaContainers = true;
                 }
             }
+            // Cache requests that have a token associated with them separately
+            $token = '';
+            $request = Craft::$app->getRequest();
+            if (!$request->isConsoleRequest) {
+                try {
+                    $token = $request->getToken() ?? '';
+                } catch (BadRequestHttpException $e) {
+                }
+            }
             // Get our cache key
-            $cacheKey = $uri . $siteId . $paginationPage . $requestPath . $this->getAllowedUrlParams();
+            $cacheKey = $uri . $siteId . $paginationPage . $requestPath . $this->getAllowedUrlParams() . $token;
             // For requests with a status code of >= 400, use one cache key
             if (!$request->isConsoleRequest) {
                 $response = Craft::$app->getResponse();
@@ -429,20 +423,21 @@ class MetaContainers extends Component
                 ],
             ]);
             $this->containerDependency = $dependency;
-            if (Seomatic::$previewingMetaContainers) {
+            $debugModule = Seomatic::$settings->enableDebugToolbarPanel ? Craft::$app->getModule('debug') : null;
+            if (Seomatic::$previewingMetaContainers || $debugModule) {
                 Seomatic::$plugin->frontendTemplates->loadFrontendTemplateContainers($siteId);
                 $this->loadGlobalMetaContainers($siteId);
                 $this->loadContentMetaContainers();
                 $this->loadFieldMetaContainers();
                 // We only need the dynamic data for headless requests
-                if (Seomatic::$headlessRequest || Seomatic::$plugin->helper::isPreview()) {
+                if (Seomatic::$headlessRequest || Seomatic::$plugin->helper::isPreview() || $debugModule) {
                     DynamicMetaHelper::addDynamicMetaToContainers($uri, $siteId);
                 }
             } else {
                 $cache = Craft::$app->getCache();
                 list($this->metaGlobalVars, $this->metaSiteVars, $this->metaSitemapVars, $this->metaContainers) = $cache->getOrSet(
                     self::CACHE_KEY . $cacheKey,
-                    function () use ($uri, $siteId) {
+                    function() use ($uri, $siteId) {
                         Craft::info(
                             'Meta container cache miss: ' . $uri . '/' . $siteId,
                             __METHOD__
@@ -473,19 +468,21 @@ class MetaContainers extends Component
     public function getMatchedMetaBundle()
     {
         $metaBundle = null;
-        /** @var Element $element */
+        /** @var Element|null $element */
         $element = Seomatic::$matchedElement;
         if ($element) {
             $sourceType = Seomatic::$plugin->seoElements->getMetaBundleTypeFromElement($element);
             if ($sourceType) {
                 list($sourceId, $sourceBundleType, $sourceHandle, $sourceSiteId, $typeId)
                     = Seomatic::$plugin->metaBundles->getMetaSourceFromElement($element);
-                $metaBundle = Seomatic::$plugin->metaBundles->getMetaBundleBySourceId(
-                    $sourceType,
-                    $sourceId,
-                    $sourceSiteId,
-                    $typeId
-                );
+                if ($sourceId !== null) {
+                    $metaBundle = Seomatic::$plugin->metaBundles->getMetaBundleBySourceId(
+                        $sourceType,
+                        $sourceId,
+                        $sourceSiteId,
+                        $typeId
+                    );
+                }
             }
         }
         $this->matchedMetaBundle = $metaBundle;
@@ -506,6 +503,14 @@ class MetaContainers extends Component
         }
         $metaBundle = Seomatic::$plugin->metaBundles->getGlobalMetaBundle($siteId);
         if ($metaBundle) {
+            // Fire an 'metaBundleDebugData' event
+            if ($this->hasEventHandlers(self::EVENT_METABUNDLE_DEBUG_DATA)) {
+                $event = new MetaBundleDebugDataEvent([
+                    'metaBundleCategory' => MetaBundleDebugDataEvent::GLOBAL_META_BUNDLE,
+                    'metaBundle' => $metaBundle,
+                ]);
+                $this->trigger(self::EVENT_METABUNDLE_DEBUG_DATA, $event);
+            }
             // Meta global vars
             $this->metaGlobalVars = clone $metaBundle->metaGlobalVars;
             // Meta site vars
@@ -582,7 +587,7 @@ class MetaContainers extends Component
      */
     public function addToMetaContainer(MetaItem $data, string $key)
     {
-        /** @var  $container MetaContainer */
+        /** @var MetaContainer $container */
         $container = $this->getMetaContainer($key);
 
         if ($container !== null) {
@@ -619,12 +624,12 @@ class MetaContainers extends Component
      *
      * @return null|MetaContainer
      */
-    public function createMetaContainer(string $type, string $key): MetaContainer
+    public function createMetaContainer(string $type, string $key): ?MetaContainer
     {
         /** @var MetaContainer $container */
         $container = null;
         if (empty($this->metaContainers[$key])) {
-            /** @var MetaContainer $className */
+            /** @var string|null $className */
             $className = null;
             // Create a new container based on the type passed in
             switch ($type) {
@@ -646,9 +651,7 @@ class MetaContainers extends Component
             }
             if ($className) {
                 $container = $className::create();
-                if ($container) {
-                    $this->metaContainers[$key] = $container;
-                }
+                $this->metaContainers[$key] = $container;
             }
         }
 
@@ -686,7 +689,7 @@ class MetaContainers extends Component
 
             return $html;
         }
-        /** @var  $metaContainer MetaContainer */
+        /** @var MetaContainer $metaContainer */
         foreach ($this->metaContainers as $metaContainer) {
             if ($metaContainer::CONTAINER_TYPE === $type && $metaContainer->include) {
                 $result = $metaContainer->render([
@@ -751,7 +754,7 @@ class MetaContainers extends Component
 
             return $renderedTemplates;
         }
-        /** @var  $metaContainer MetaContainer */
+        /** @var MetaContainer $metaContainer */
         foreach ($this->metaContainers as $metaContainer) {
             if ($metaContainer::CONTAINER_TYPE === $type && $metaContainer->include) {
                 /** @noinspection SlowArrayOperationsInLoopInspection */
@@ -778,10 +781,9 @@ class MetaContainers extends Component
     public function getMetaItemByKey(string $key, string $type = '')
     {
         $metaItem = null;
-        /** @var  $metaContainer MetaContainer */
+        /** @var MetaContainer $metaContainer */
         foreach ($this->metaContainers as $metaContainer) {
             if (($metaContainer::CONTAINER_TYPE === $type) || empty($type)) {
-                /** @var  $metaTag MetaItem */
                 foreach ($metaContainer->data as $metaItem) {
                     if ($key === $metaItem->key) {
                         return $metaItem;
@@ -902,10 +904,28 @@ class MetaContainers extends Component
                 ?? Craft::$app->getSites()->primarySite->id
                 ?? 1;
         }
+        $element = null;
         $uri = trim($uri, '/');
         /** @var Element $element */
         $enabledOnly = !Seomatic::$previewingMetaContainers;
-        $element = Craft::$app->getElements()->getElementByUri($uri, $siteId, $enabledOnly);
+        // Try to use Craft's matched element if looking for an enabled element, the current `siteId` is being used and
+        // the current `uri` matches what was in the request
+        $request = Craft::$app->getRequest();
+        if ($enabledOnly && !$request->getIsConsoleRequest()) {
+            /** @var UrlManager $urlManager */
+            $urlManager = Craft::$app->getUrlManager();
+            try {
+                if ($siteId === Craft::$app->getSites()->currentSite->id
+                    && $request->getPathInfo() === $uri) {
+                    $element = $urlManager->getMatchedElement();
+                }
+            } catch (Throwable $e) {
+                Craft::error($e->getMessage(), __METHOD__);
+            }
+        }
+        if (!$element) {
+            $element = Craft::$app->getElements()->getElementByUri($uri, $siteId, $enabledOnly);
+        }
         if ($element && ($element->uri !== null)) {
             Seomatic::setMatchedElement($element);
         }
@@ -948,6 +968,14 @@ class MetaContainers extends Component
         Craft::beginProfile('MetaContainers::loadContentMetaContainers', __METHOD__);
         $metaBundle = $this->getMatchedMetaBundle();
         if ($metaBundle) {
+            // Fire an 'metaBundleDebugData' event
+            if ($this->hasEventHandlers(self::EVENT_METABUNDLE_DEBUG_DATA)) {
+                $event = new MetaBundleDebugDataEvent([
+                    'metaBundleCategory' => MetaBundleDebugDataEvent::CONTENT_META_BUNDLE,
+                    'metaBundle' => $metaBundle,
+                ]);
+                $this->trigger(self::EVENT_METABUNDLE_DEBUG_DATA, $event);
+            }
             $this->addMetaBundleToContainers($metaBundle);
         }
         Craft::endProfile('MetaContainers::loadContentMetaContainers', __METHOD__);
@@ -975,8 +1003,8 @@ class MetaContainers extends Component
                             $parentBundle = Seomatic::$plugin->metaBundles->getContentMetaBundleForElement($element);
 
                             foreach ($rules as $settingPath => $action) {
-                                list ($container, $property) = explode('.', $settingPath);
-                                list ($testValue, $sourceSetting) = explode('.', $action);
+                                list($container, $property) = explode('.', $settingPath);
+                                list($testValue, $sourceSetting) = explode('.', $action);
 
                                 $bundleProp = $parentBundle->{$container}->{$property} ?? null;
                                 if ($bundleProp == $testValue) {
@@ -1004,6 +1032,14 @@ class MetaContainers extends Component
                             $schemaType = MetaValueHelper::parseString($schemaType);
                             $generalContainer->data['mainEntityOfPage'] = MetaJsonLd::create($schemaType, $config);
                         }
+                    }
+                    // Fire an 'metaBundleDebugData' event
+                    if ($this->hasEventHandlers(self::EVENT_METABUNDLE_DEBUG_DATA)) {
+                        $event = new MetaBundleDebugDataEvent([
+                            'metaBundleCategory' => MetaBundleDebugDataEvent::FIELD_META_BUNDLE,
+                            'metaBundle' => $metaBundle,
+                        ]);
+                        $this->trigger(self::EVENT_METABUNDLE_DEBUG_DATA, $event);
                     }
                     $this->addMetaBundleToContainers($metaBundle);
                 }

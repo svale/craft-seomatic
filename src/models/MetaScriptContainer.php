@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -11,12 +11,11 @@
 
 namespace nystudio107\seomatic\models;
 
-use nystudio107\seomatic\Seomatic;
+use Craft;
+use craft\helpers\Html;
 use nystudio107\seomatic\base\NonceContainer;
 use nystudio107\seomatic\helpers\ImageTransform as ImageTransformHelper;
-
-use Craft;
-
+use nystudio107\seomatic\Seomatic;
 use yii\caching\TagDependency;
 use yii\web\View;
 
@@ -30,7 +29,7 @@ class MetaScriptContainer extends NonceContainer
     // Constants
     // =========================================================================
 
-    const CONTAINER_TYPE = 'MetaScriptContainer';
+    public const CONTAINER_TYPE = 'MetaScriptContainer';
 
     // Public Properties
     // =========================================================================
@@ -56,47 +55,20 @@ class MetaScriptContainer extends NonceContainer
     public function includeMetaData($dependency)
     {
         Craft::beginProfile('MetaScriptContainer::includeMetaData', __METHOD__);
-        $uniqueKey = $this->handle.$dependency->tags[3].$this->dataLayerHash();
+        $uniqueKey = $this->handle . $dependency->tags[3] . $this->dataLayerHash();
         $cache = Craft::$app->getCache();
         if ($this->clearCache) {
             TagDependency::invalidate($cache, $dependency->tags[3]);
         }
         $tagData = $cache->getOrSet(
-            self::CONTAINER_TYPE.$uniqueKey,
-            function () use ($uniqueKey) {
+            self::CONTAINER_TYPE . $uniqueKey,
+            function() use ($uniqueKey) {
                 Craft::info(
-                    self::CONTAINER_TYPE.' cache miss: '.$uniqueKey,
+                    self::CONTAINER_TYPE . ' cache miss: ' . $uniqueKey,
                     __METHOD__
                 );
-                $tagData = [];
-                if ($this->prepForInclusion()) {
-                    /** @var $metaScriptModel MetaScript */
-                    foreach ($this->data as $metaScriptModel) {
-                        if ($metaScriptModel->include) {
-                            $js = $metaScriptModel->render();
-                            if (!empty($js)) {
-                                $scenario = $this->scenario;
-                                $metaScriptModel->setScenario('render');
-                                $options = $metaScriptModel->tagAttributes();
-                                $metaScriptModel->setScenario($scenario);
-                                $tagData[] = [
-                                    'js' => $js,
-                                    'position' => $metaScriptModel->position ?? $this->position,
-                                    'nonce' => $metaScriptModel->nonce ?? null,
-                                    'tagAttrs' => $options,
-                                ];
-                                // If `devMode` is enabled, validate the Meta Script and output any model errors
-                                if (Seomatic::$devMode) {
-                                    $metaScriptModel->debugMetaItem(
-                                        'Script attribute: '
-                                    );
-                                }
-                            }
-                        }
-                    }
-                }
 
-                return $tagData;
+                return $this->renderInternal();
             },
             Seomatic::$cacheDuration,
             $dependency
@@ -115,11 +87,19 @@ class MetaScriptContainer extends NonceContainer
                     'nonce' => $config['nonce'],
                 ]);
             }
-            Seomatic::$view->registerScript(
-                $config['js'],
-                $config['position'],
-                $attrs
-            );
+            $bodyJs = $config['bodyJs'] ?? false;
+            if ($bodyJs) {
+                Seomatic::$view->registerHtml(
+                    $config['js'],
+                    $config['position'],
+                );
+            } else {
+                Seomatic::$view->registerScript(
+                    $config['js'],
+                    $config['position'],
+                    $attrs
+                );
+            }
         }
 
         Craft::endProfile('MetaScriptContainer::includeMetaData', __METHOD__);
@@ -128,18 +108,49 @@ class MetaScriptContainer extends NonceContainer
     /**
      * @inheritdoc
      */
-    public function render(array $params = []): string
+    public function render(array $params = [
+        'renderScriptTags' => true,
+    ]): string
     {
-        $html = parent::render($params);
-        if ($params['renderScriptTags']) {
-            $html =
-                '<script>'
-                .$html
-                .'</script>'
-            ;
+        $html = '';
+        $linebreak = '';
+        // If `devMode` is enabled, make the scripts human-readable
+        if (Seomatic::$devMode) {
+            $linebreak = PHP_EOL;
+        }
+        $tagData = $this->renderInternal();
+        // Register the tags
+        foreach ($tagData as $config) {
+            // Register the tags
+            $attrs = $config['tagAttrs'] ?? [];
+            if (!empty($config['nonce'])) {
+                /** @noinspection SlowArrayOperationsInLoopInspection */
+                $attrs = array_merge($attrs, [
+                    'nonce' => $config['nonce'],
+                ]);
+            }
+            $bodyJs = $config['bodyJs'] ?? false;
+            // If `devMode` is enabled, add some positional information
+            if (Seomatic::$devMode) {
+                $positionNames = [
+                    '<head>',
+                    '<body>',
+                    '</body>',
+                    'jQuery(document).ready()',
+                    'jQuery(window).load()',
+                ];
+                $position = $positionNames[$config['position'] - 1] ?? 'unknown';
+                $html .= "<!-- Position: {$position} -->" . PHP_EOL;
+            }
+            if ($bodyJs || !$params['renderScriptTags']) {
+                $html .= $config['js'];
+            } else {
+                $html .= Html::script($config['js'], $attrs);
+            }
+            $html .= $linebreak;
         }
 
-        return $html;
+        return trim($html);
     }
 
     /**
@@ -149,6 +160,7 @@ class MetaScriptContainer extends NonceContainer
     {
         parent::normalizeContainerData();
 
+        /** @var array $config */
         foreach ($this->data as $key => $config) {
             $config['key'] = $key;
             $this->data[$key] = MetaScript::create($config);
@@ -157,6 +169,66 @@ class MetaScriptContainer extends NonceContainer
 
     // Protected Methods
     // =========================================================================
+
+    /**
+     * Render all of the scripts out into tagData
+     *
+     * @return array
+     */
+    protected function renderInternal(): array
+    {
+        $tagData = [];
+        if ($this->prepForInclusion()) {
+            foreach ($this->data as $metaScriptModel) {
+                if ($metaScriptModel->include) {
+                    // The regular script JS
+                    $js = $metaScriptModel->render();
+                    if (!empty($js)) {
+                        $scenario = $this->scenario;
+                        $metaScriptModel->setScenario('render');
+                        $options = $metaScriptModel->tagAttributes();
+                        $metaScriptModel->setScenario($scenario);
+                        $tagData[] = [
+                            'js' => $js,
+                            'position' => $metaScriptModel->position,
+                            'nonce' => $metaScriptModel->nonce ?? null,
+                            'tagAttrs' => $options,
+                            'bodyJs' => false,
+                        ];
+                        // If `devMode` is enabled, validate the Meta Script and output any model errors
+                        if (Seomatic::$devMode) {
+                            $metaScriptModel->debugMetaItem(
+                                'Script attribute: '
+                            );
+                        }
+                    }
+                    // The body script JS (has no wrapping <script></script> tags, as it can be arbitrary HTML)
+                    $bodyJs = $metaScriptModel->renderBodyHtml();
+                    if (!empty($bodyJs)) {
+                        $scenario = $this->scenario;
+                        $metaScriptModel->setScenario('render');
+                        $options = $metaScriptModel->tagAttributes();
+                        $metaScriptModel->setScenario($scenario);
+                        $tagData[] = [
+                            'js' => $bodyJs,
+                            'position' => $metaScriptModel->bodyPosition,
+                            'nonce' => $metaScriptModel->nonce ?? null,
+                            'tagAttrs' => $options,
+                            'bodyJs' => true,
+                        ];
+                        // If `devMode` is enabled, validate the Meta Script and output any model errors
+                        if (Seomatic::$devMode) {
+                            $metaScriptModel->debugMetaItem(
+                                'Script attribute: '
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        return $tagData;
+    }
 
     protected function dataLayerHash(): string
     {

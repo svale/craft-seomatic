@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * @link      https://nystudio107.com/
  * @copyright Copyright (c) 2017 nystudio107
@@ -29,7 +29,6 @@ use nystudio107\seomatic\seoelements\SeoEntry;
 use nystudio107\seomatic\Seomatic;
 use nystudio107\seomatic\services\MetaContainers;
 use ReflectionClass;
-use ReflectionException;
 use yii\base\InvalidConfigException;
 use yii\caching\TagDependency;
 use yii\db\Schema;
@@ -48,9 +47,9 @@ class SeoSettings extends Field implements PreviewableFieldInterface
     // Constants
     // =========================================================================
 
-    const CACHE_KEY = 'seomatic_fieldmeta_';
+    public const CACHE_KEY = 'seomatic_fieldmeta_';
 
-    const BUNDLE_COMPARE_FIELDS = [
+    public const BUNDLE_COMPARE_FIELDS = [
         'metaGlobalVars',
     ];
 
@@ -112,9 +111,33 @@ class SeoSettings extends Field implements PreviewableFieldInterface
     /**
      * @inheritdoc
      */
+    public static function dbType(): array|string|null
+    {
+        return Schema::TYPE_TEXT;
+    }
+
+    /**
+     * @inheritdoc
+     */
     public static function displayName(): string
     {
         return Craft::t('seomatic', 'SEO Settings');
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public static function icon(): string
+    {
+        return '@nystudio107/seomatic/icon-mask.svg';
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public static function phpType(): string
+    {
+        return sprintf('\\%s', MetaBundle::class);
     }
 
     // Public Methods
@@ -159,14 +182,6 @@ class SeoSettings extends Field implements PreviewableFieldInterface
 
     /**
      * @inheritdoc
-     */
-    public function getContentColumnType(): array|string
-    {
-        return Schema::TYPE_TEXT;
-    }
-
-    /**
-     * @inheritdoc
      * @since 2.0.0
      */
     public function useFieldset(): bool
@@ -205,15 +220,8 @@ class SeoSettings extends Field implements PreviewableFieldInterface
             $elementName = '';
             /** @var Element $element */
             if ($element !== null) {
-                try {
-                    $reflector = new ReflectionClass($element);
-                } catch (ReflectionException $e) {
-                    $reflector = null;
-                    Craft::error($e->getMessage(), __METHOD__);
-                }
-                if ($reflector) {
-                    $elementName = strtolower($reflector->getShortName());
-                }
+                $reflector = new ReflectionClass($element);
+                $elementName = strtolower($reflector->getShortName());
             }
             // Handle the pull fields
             if (!empty($config['metaGlobalVars']) && !empty($config['metaBundleSettings'])) {
@@ -261,7 +269,7 @@ class SeoSettings extends Field implements PreviewableFieldInterface
                 $value = StringHelper::encodeMb4($value);
             }
             if (is_array($value)) {
-                array_walk_recursive($value, function (&$arrayValue, $arrayKey) {
+                array_walk_recursive($value, function(&$arrayValue, $arrayKey) {
                     if ($arrayValue !== null && is_string($arrayValue)) {
                         $arrayValue = StringHelper::encodeMb4($arrayValue);
                     }
@@ -281,7 +289,7 @@ class SeoSettings extends Field implements PreviewableFieldInterface
         $tagOptions = [
             'depends' => [
                 'nystudio107\\seomatic\\assetbundles\\seomatic\\SeomaticAsset',
-            ]
+            ],
         ];
         // JS/CSS modules
         try {
@@ -315,7 +323,7 @@ class SeoSettings extends Field implements PreviewableFieldInterface
         $tagOptions = [
             'depends' => [
                 'nystudio107\\seomatic\\assetbundles\\seomatic\\SeomaticAsset',
-            ]
+            ],
         ];
         // JS/CSS modules
         try {
@@ -360,7 +368,7 @@ class SeoSettings extends Field implements PreviewableFieldInterface
         $variables['parentBundles'] = [];
         // Preview the containers so the preview is correct in the field
         if ($element !== null && $element->uri !== null) {
-            Seomatic::$plugin->metaContainers->previewMetaContainers($element->uri, $element->siteId, true);
+            Seomatic::$plugin->metaContainers->previewMetaContainers($element->uri, $element->siteId, true, true, $element);
             $contentMeta = Seomatic::$plugin->metaBundles->getContentMetaBundleForElement($element);
             $globalMeta = Seomatic::$plugin->metaBundles->getGlobalMetaBundle($element->siteId);
             $variables['parentBundles'] = [$contentMeta, $globalMeta];
@@ -404,11 +412,11 @@ class SeoSettings extends Field implements PreviewableFieldInterface
             $cacheDuration = null;
             $html = $cache->getOrSet(
                 self::CACHE_KEY . $cacheKey,
-                function () use ($uri, $siteId, $element) {
-                    Seomatic::$plugin->metaContainers->previewMetaContainers($uri, $siteId, true);
+                function() use ($uri, $siteId, $element) {
+                    Seomatic::$plugin->metaContainers->previewMetaContainers($uri, $siteId, true, true, $element);
                     $variables = [
                         'previewTypes' => [
-                            $this->elementDisplayPreviewType ?? '',
+                            $this->elementDisplayPreviewType,
                         ],
                         'previewElementId' => $element->id,
                     ];
@@ -442,9 +450,8 @@ class SeoSettings extends Field implements PreviewableFieldInterface
     protected function setContentFieldSourceVariables(
         Element $element,
         string  $groupName,
-        array   &$variables
-    )
-    {
+        array   &$variables,
+    ) {
         $variables['textFieldSources'] = array_merge(
             ['entryGroup' => ['optgroup' => $groupName . ' Fields'], 'title' => 'Title'],
             FieldHelper::fieldsOfTypeFromElement(

@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -22,7 +22,6 @@ use craft\models\Section;
 use craft\models\Section_SiteSettings;
 use craft\models\Site;
 use DateTime;
-use Exception;
 use nystudio107\seomatic\base\SeoElementInterface;
 use nystudio107\seomatic\fields\SeoSettings;
 use nystudio107\seomatic\helpers\ArrayHelper;
@@ -32,11 +31,13 @@ use nystudio107\seomatic\helpers\Migration as MigrationHelper;
 use nystudio107\seomatic\helpers\SiteHelper;
 use nystudio107\seomatic\models\MetaBundle;
 use nystudio107\seomatic\models\MetaScriptContainer;
+use nystudio107\seomatic\models\metatag\RobotsTag;
 use nystudio107\seomatic\models\MetaTagContainer;
 use nystudio107\seomatic\records\MetaBundle as MetaBundleRecord;
 use nystudio107\seomatic\Seomatic;
 use nystudio107\seomatic\services\Tag as TagService;
 use Throwable;
+use yii\base\InvalidConfigException;
 use function in_array;
 
 /**
@@ -52,17 +53,17 @@ class MetaBundles extends Component
     // Constants
     // =========================================================================
 
-    const GLOBAL_META_BUNDLE = '__GLOBAL_BUNDLE__';
-    const FIELD_META_BUNDLE = 'field';
+    public const GLOBAL_META_BUNDLE = '__GLOBAL_BUNDLE__';
+    public const FIELD_META_BUNDLE = 'field';
 
-    const IGNORE_DB_ATTRIBUTES = [
+    public const IGNORE_DB_ATTRIBUTES = [
         'id',
         'dateCreated',
         'dateUpdated',
         'uid',
     ];
 
-    const ALWAYS_INCLUDED_SEO_SETTINGS_FIELDS = [
+    public const ALWAYS_INCLUDED_SEO_SETTINGS_FIELDS = [
         'twitterTitle',
         'twitterDescription',
         'twitterImage',
@@ -74,7 +75,7 @@ class MetaBundles extends Component
         'ogImageDescription',
     ];
 
-    const COMPOSITE_INHERITANCE_CHILDREN = [
+    public const COMPOSITE_INHERITANCE_CHILDREN = [
         'seoImage' => [
             'metaBundleSettings.seoImageTransformMode',
             'metaBundleSettings.seoImageTransform',
@@ -96,6 +97,21 @@ class MetaBundles extends Component
             'metaBundleSettings.twitterImageField',
             'metaBundleSettings.twitterImageIds',
         ],
+    ];
+
+    public const PRESERVE_SCRIPT_SETTINGS = [
+        'include',
+        'tagAttrs',
+        'templateString',
+        'position',
+        'bodyTemplateString',
+        'bodyPosition',
+        'vars',
+    ];
+
+    public const PRESERVE_FRONTEND_TEMPLATE_SETTINGS = [
+        'include',
+        'templateString',
     ];
 
     // Protected Properties
@@ -286,6 +302,7 @@ class MetaBundles extends Component
             // @TODO remove this hack that doesn't allow environment-transformed settings to be saved in a meta bundle with a proper system to address it
             // The issue was that the containers were getting saved to the db with a hard-coded setting in them, because they'd
             // been set that way by the environment, whereas to be changeable via the GUI, it needs to be set to {seomatic.meta.robots}
+            /** @var RobotsTag|null $robotsTag */
             $robotsTag = $metaBundle->metaContainers[MetaTagContainer::CONTAINER_TYPE . TagService::GENERAL_HANDLE]->data['robots'] ?? null;
             if (!empty($robotsTag)) {
                 $robotsTag->content = $robotsTag->environment['live']['content'] ?? '{{ seomatic.meta.robots }}';
@@ -320,20 +337,21 @@ class MetaBundles extends Component
     }
 
     /**
-     * @param SeoElementInterface $seoElement
+     * @param class-string<SeoElementInterface> $seoElement
      * @param Model $sourceModel
      * @param int $sourceSiteId
-     * @param MetaBundle|null $baseConfig
-     *
+     * @param null $baseConfig
+     * @param bool $syncConfig
      * @return MetaBundle|null
+     * @throws InvalidConfigException
      */
     public function createMetaBundleFromSeoElement(
         $seoElement,
         $sourceModel,
         int $sourceSiteId,
-        $baseConfig = null
-    )
-    {
+        $baseConfig = null,
+        $syncConfig = false,
+    ) {
         $metaBundle = null;
         // Get the site settings and turn them into arrays
         /** @var Section|CategoryGroup|ProductType $sourceModel */
@@ -353,45 +371,44 @@ class MetaBundles extends Component
             // Create a MetaBundle for this site
             $siteSetting = $siteSettings[$sourceSiteId];
             if ($siteSetting->hasUrls && SiteHelper::siteEnabledWithUrls($sourceSiteId)) {
-                // Get the most recent dateUpdated
-                $element = $seoElement::mostRecentElement($sourceModel, $sourceSiteId);
-                /** @var Element $element */
-                if ($element) {
-                    $dateUpdated = $element->dateUpdated ?? $element->dateCreated;
-                } else {
-                    try {
+                if ($syncConfig) {
+                    // Get the most recent dateUpdated
+                    $element = $seoElement::mostRecentElement($sourceModel, $sourceSiteId);
+                    /** @var Element|null $element */
+                    if ($element) {
+                        $dateUpdated = $element->dateUpdated ?? $element->dateCreated;
+                    } else {
                         $dateUpdated = new DateTime();
-                    } catch (Exception $e) {
                     }
-                }
-                // Create a new meta bundle with propagated defaults
-                $metaBundleDefaults = ArrayHelper::merge(
-                    $seoElement::metaBundleConfig($sourceModel),
-                    [
-                        'sourceTemplate' => (string)$siteSetting->template,
-                        'sourceSiteId' => $siteSetting->siteId,
-                        'sourceAltSiteSettings' => $siteSettingsArray,
-                        'sourceDateUpdated' => $dateUpdated,
-                    ]
-                );
-                // The mainEntityOfPage computedType must be set before creating the bundle
-                if ($baseConfig !== null && !empty($baseConfig->metaGlobalVars->mainEntityOfPage)) {
-                    $metaBundleDefaults['metaGlobalVars']['mainEntityOfPage'] =
-                        $baseConfig->metaGlobalVars->mainEntityOfPage;
-                }
-                // Merge in any migrated settings from an old Seomatic_Meta Field
-                if ($element !== null) {
-                    /** @var Element $elementFromSite */
-                    $elementFromSite = Craft::$app->getElements()->getElementById($element->id, null, $sourceSiteId);
-                    if ($element instanceof Element) {
-                        $config = MigrationHelper::configFromSeomaticMeta(
-                            $elementFromSite,
-                            MigrationHelper::SECTION_MIGRATION_CONTEXT
-                        );
-                        $metaBundleDefaults = ArrayHelper::merge(
-                            $metaBundleDefaults,
-                            $config
-                        );
+                    // Create a new meta bundle with propagated defaults
+                    $metaBundleDefaults = ArrayHelper::merge(
+                        $seoElement::metaBundleConfig($sourceModel),
+                        [
+                            'sourceTemplate' => (string)$siteSetting->template,
+                            'sourceSiteId' => $siteSetting->siteId,
+                            'sourceAltSiteSettings' => $siteSettingsArray,
+                            'sourceDateUpdated' => $dateUpdated,
+                        ]
+                    );
+                    // The mainEntityOfPage computedType must be set before creating the bundle
+                    if ($baseConfig !== null && !empty($baseConfig->metaGlobalVars->mainEntityOfPage)) {
+                        $metaBundleDefaults['metaGlobalVars']['mainEntityOfPage'] =
+                            $baseConfig->metaGlobalVars->mainEntityOfPage;
+                    }
+                    // Merge in any migrated settings from an old Seomatic_Meta Field
+                    if ($element !== null) {
+                        /** @var Element $elementFromSite */
+                        $elementFromSite = Craft::$app->getElements()->getElementById($element->id, null, $sourceSiteId);
+                        if ($element instanceof Element) {
+                            $config = MigrationHelper::configFromSeomaticMeta(
+                                $elementFromSite,
+                                MigrationHelper::SECTION_MIGRATION_CONTEXT
+                            );
+                            $metaBundleDefaults = ArrayHelper::merge(
+                                $metaBundleDefaults,
+                                $config
+                            );
+                        }
                     }
                 }
                 $metaBundle = MetaBundle::create($metaBundleDefaults);
@@ -478,7 +495,7 @@ class MetaBundles extends Component
      * @param int|null $sourceId
      * @param bool $isNew
      */
-    public function invalidateMetaBundleById(string $sourceBundleType, int $sourceId, bool $isNew = false)
+    public function invalidateMetaBundleById(string $sourceBundleType, ?int $sourceId, bool $isNew = false)
     {
         $metaBundleInvalidated = false;
         $sites = Craft::$app->getSites()->getAllSites();
@@ -541,7 +558,7 @@ class MetaBundles extends Component
      *
      * @return null|MetaBundle
      */
-    public function getMetaBundleBySourceId(string $sourceBundleType, int $sourceId, int $sourceSiteId, $typeId = null)
+    public function getMetaBundleBySourceId(string $sourceBundleType, int $sourceId, ?int $sourceSiteId, $typeId = null)
     {
         $metaBundle = null;
         $typeId = (int)$typeId;
@@ -630,7 +647,7 @@ class MetaBundles extends Component
     /**
      * Invalidate the caches and data structures associated with this MetaBundle
      *
-     * @param Element $element
+     * @param Element|null $element
      * @param bool $isNew
      */
     public function invalidateMetaBundleByElement($element, bool $isNew = false)
@@ -644,8 +661,8 @@ class MetaBundles extends Component
         if ($element && $invalidateMetaBundle) {
             $uri = $element->uri ?? '';
             // Normalize the incoming URI to account for `__home__`
-            if ($element->slug) {
-                $uri = ($element->slug === '__home__') ? '' : $uri;
+            if ($element->uri) {
+                $uri = ($element->uri === '__home__') ? '' : $uri;
             }
             // Invalidate sitemap caches after an existing element is saved
             list($sourceId, $sourceBundleType, $sourceHandle, $sourceSiteId, $typeId)
@@ -663,20 +680,13 @@ class MetaBundles extends Component
                 // Invalidate the sitemap cache
                 $metaBundle = $this->getMetaBundleBySourceId($sourceBundleType, $sourceId, $sourceSiteId);
                 if ($metaBundle) {
-                    if ($element) {
-                        $dateUpdated = $element->dateUpdated ?? $element->dateCreated;
-                    } else {
-                        try {
-                            $dateUpdated = new DateTime();
-                        } catch (Exception $e) {
-                        }
-                    }
+                    $dateUpdated = $element->dateUpdated ?? $element->dateCreated;
                     $metaBundle->sourceDateUpdated = $dateUpdated;
                     // Update the meta bundle data
                     $this->updateMetaBundle($metaBundle, $sourceSiteId);
-                    if ($metaBundle
-                        && $metaBundle->metaSitemapVars->sitemapUrls
-                        && $element->scenario !== Element::SCENARIO_ESSENTIALS
+                    if (
+                        $metaBundle->metaSitemapVars->sitemapUrls
+                        && !$element->resaving
                         && Seomatic::$settings->regenerateSitemapsAutomatically) {
                         $sitemapInvalidated = true;
                         Seomatic::$plugin->sitemaps->invalidateSitemapCache(
@@ -691,7 +701,7 @@ class MetaBundles extends Component
             // If we've invalidated a meta bundle, we need to invalidate the sitemap index, too
             if ($metaBundleInvalidated
                 && $sitemapInvalidated
-                && $element->scenario !== Element::SCENARIO_ESSENTIALS) {
+                && !$element->resaving) {
                 Seomatic::$plugin->sitemaps->invalidateSitemapIndexCache();
             }
         }
@@ -739,7 +749,6 @@ class MetaBundles extends Component
         // Since sectionIds, CategoryIds, etc. are not unique, we need to do separate queries and combine them
         $seoElements = Seomatic::$plugin->seoElements->getAllSeoElementTypes();
         foreach ($seoElements as $seoElement) {
-
             $subQuery = (new Query())
                 ->from(['{{%seomatic_metabundles}}'])
                 ->where(['=', 'sourceBundleType', $seoElement::META_BUNDLE_TYPE]);
@@ -756,7 +765,7 @@ class MetaBundles extends Component
                 ->leftJoin(['mb2' => $subQuery], [
                     'and',
                     '[[mb.sourceId]] = [[mb2.sourceId]]',
-                    '[[mb.id]] < [[mb2.id]]'
+                    '[[mb.id]] < [[mb2.id]]',
                 ])
                 ->where(['mb2.id' => null]);
             $bundles = array_merge($bundles, $bundleQuery->all());
@@ -799,7 +808,7 @@ class MetaBundles extends Component
      */
     public function pruneFieldMetaBundleSettings(MetaBundle $metaBundle, string $fieldHandle)
     {
-        /** @var SeoSettings $seoSettingsField */
+        /** @var SeoSettings|null $seoSettingsField */
         $seoSettingsField = Craft::$app->getFields()->getFieldByHandle($fieldHandle);
         if ($seoSettingsField) {
             $seoSettingsEnabledFields = array_flip(array_merge(
@@ -824,7 +833,7 @@ class MetaBundles extends Component
             $emptyValues = array_merge($emptyValues, array_fill_keys($inherited, ''));
             foreach ($inherited as $inheritedAttribute) {
                 foreach (self::COMPOSITE_INHERITANCE_CHILDREN[$inheritedAttribute] ?? [] as $child) {
-                    list ($model, $attribute) = explode('.', $child);
+                    list($model, $attribute) = explode('.', $child);
                     $metaBundle->{$model}->$attribute = '';
                 }
             }
@@ -889,8 +898,8 @@ class MetaBundles extends Component
         if ($sourceBundleType && $sourceBundleType !== self::GLOBAL_META_BUNDLE) {
             $seoElement = Seomatic::$plugin->seoElements->getSeoElementByMetaBundleType($sourceBundleType);
             if ($seoElement) {
-                $sourceModel = $seoElement::sourceModelFromHandle($metaBundle->sourceHandle);
-                /** @var Section|CategoryGroup|ProductType $sourceModel */
+                $sourceModel = $seoElement::sourceModelFromId($metaBundle->sourceId);
+                /** @var Section|CategoryGroup|ProductType|null $sourceModel */
                 if ($sourceModel === null) {
                     $prune = true;
                 } else {
@@ -939,9 +948,9 @@ class MetaBundles extends Component
      *
      * @param string $sourceBundleType
      * @param int $sourceId
-     * @param null $siteId
+     * @param int|null $siteId
      */
-    public function deleteMetaBundleBySourceId(string $sourceBundleType, int $sourceId, $siteId = null)
+    public function deleteMetaBundleBySourceId(string $sourceBundleType, int $sourceId, ?int $siteId = null)
     {
         $sites = [];
         if ($siteId === null) {
@@ -949,7 +958,7 @@ class MetaBundles extends Component
         } else {
             $sites[] = Craft::$app->getSites()->getSiteById($siteId);
         }
-        /** @var  $site Site */
+        /** @var Site $site */
         foreach ($sites as $site) {
             // Look for a matching meta bundle in the db
             $metaBundleRecord = MetaBundleRecord::findOne([
@@ -1049,9 +1058,14 @@ class MetaBundles extends Component
                 $metaBundle->metaSiteVars->creator->setAttributes($attributes);
             }
         }
-        // Preserve the Frontend Templates, but add in any new containers
-        foreach ($baseConfig->frontendTemplatesContainer->data as $key => $value) {
-            $metaBundle->frontendTemplatesContainer->data[$key] = $value;
+        // Preserve the Frontend Templates container user settings, but update everything else
+        foreach ($baseConfig->frontendTemplatesContainer->data as $baseMetaContainerName => $baseMetaContainer) {
+            $attributes = $baseMetaContainer->getAttributes();
+            if (!empty($metaBundle->frontendTemplatesContainer->data[$baseMetaContainerName])) {
+                foreach (self::PRESERVE_FRONTEND_TEMPLATE_SETTINGS as $frontendTemplateSetting) {
+                    $metaBundle->frontendTemplatesContainer->data[$baseMetaContainerName]->$frontendTemplateSetting = $attributes[$frontendTemplateSetting] ?? '';
+                }
+            }
         }
         // Preserve the metaSitemapVars
         $attributes = $baseConfig->metaSitemapVars->getAttributes();
@@ -1059,12 +1073,14 @@ class MetaBundles extends Component
         // Preserve the metaBundleSettings
         $attributes = $baseConfig->metaBundleSettings->getAttributes();
         $metaBundle->metaBundleSettings->setAttributes($attributes);
-        // Preserve the Script containers, but add in any new containers
+        // Preserve the Script container user settings, but update everything else
         foreach ($baseConfig->metaContainers as $baseMetaContainerName => $baseMetaContainer) {
             if ($baseMetaContainer::CONTAINER_TYPE === MetaScriptContainer::CONTAINER_TYPE) {
                 foreach ($baseMetaContainer->data as $key => $value) {
                     if (!empty($metaBundle->metaContainers[$baseMetaContainerName])) {
-                        $metaBundle->metaContainers[$baseMetaContainerName]->data[$key] = $value;
+                        foreach (self::PRESERVE_SCRIPT_SETTINGS as $scriptSetting) {
+                            $metaBundle->metaContainers[$baseMetaContainerName]->data[$key][$scriptSetting] = $value[$scriptSetting] ?? '';
+                        }
                     }
                 }
             }

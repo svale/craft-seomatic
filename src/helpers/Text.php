@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -13,11 +13,12 @@ namespace nystudio107\seomatic\helpers;
 
 use benf\neo\elements\Block as NeoBlock;
 use benf\neo\elements\db\BlockQuery as NeoBlockQuery;
-use craft\elements\db\MatrixBlockQuery;
+use craft\elements\db\EntryQuery;
 use craft\elements\db\TagQuery;
-use craft\elements\MatrixBlock;
+use craft\elements\Entry;
 use craft\elements\Tag;
 use craft\helpers\HtmlPurifier;
+use Illuminate\Support\Collection;
 use nystudio107\seomatic\helpers\Field as FieldHelper;
 use nystudio107\seomatic\Seomatic;
 use PhpScience\TextRank\TextRankFacade;
@@ -25,8 +26,6 @@ use PhpScience\TextRank\Tool\StopWords\StopWordsAbstract;
 use Stringy\Stringy;
 use verbb\doxter\Doxter;
 use verbb\doxter\fields\data\DoxterData;
-use verbb\supertable\elements\db\SuperTableBlockQuery;
-use verbb\supertable\elements\SuperTableBlockElement as SuperTableBlock;
 use yii\base\InvalidConfigException;
 use function array_slice;
 use function function_exists;
@@ -42,7 +41,7 @@ class Text
     // Constants
     // =========================================================================
 
-    const LANGUAGE_MAP = [
+    public const LANGUAGE_MAP = [
         'en' => 'English',
         'fr' => 'French',
         'de' => 'German',
@@ -115,22 +114,19 @@ class Text
         if (empty($field)) {
             return '';
         }
-        if ($field instanceof MatrixBlockQuery
-            || (is_array($field) && $field[0] instanceof MatrixBlock)) {
+        if ($field instanceof EntryQuery
+            || (self::isArrayLike($field) && $field[0] instanceof Entry)) {
             $result = self::extractTextFromMatrix($field);
         } elseif ($field instanceof NeoBlockQuery
-            || (is_array($field) && $field[0] instanceof NeoBlock)) {
+            || (self::isArrayLike($field) && $field[0] instanceof NeoBlock)) {
             $result = self::extractTextFromNeo($field);
-        } elseif ($field instanceof SuperTableBlockQuery
-            || (is_array($field) && $field[0] instanceof SuperTableBlock)) {
-            $result = self::extractTextFromSuperTable($field);
         } elseif ($field instanceof TagQuery
-            || (is_array($field) && $field[0] instanceof Tag)) {
+            || (self::isArrayLike($field) && $field[0] instanceof Tag)) {
             $result = self::extractTextFromTags($field);
         } elseif ($field instanceof DoxterData) {
             $result = self::smartStripTags(Doxter::$plugin->getService()->parseMarkdown($field->getRaw()));
         } else {
-            if (is_array($field)) {
+            if (self::isArrayLike($field)) {
                 $result = self::smartStripTags((string)$field[0]);
             } else {
                 $result = self::smartStripTags((string)$field);
@@ -145,7 +141,7 @@ class Text
      * Extract concatenated text from all of the tags in the $tagElement and
      * return as a comma-delimited string
      *
-     * @param TagQuery|Tag[] $tags
+     * @param TagQuery|Tag[]|array $tags
      *
      * @return string
      */
@@ -171,7 +167,7 @@ class Text
      * Extract text from all of the blocks in a matrix field, concatenating it
      * together.
      *
-     * @param MatrixBlockQuery|MatrixBlock[] $blocks
+     * @param EntryQuery|Entry[]|array $blocks
      * @param string $fieldHandle
      *
      * @return string
@@ -183,19 +179,19 @@ class Text
         }
         $result = '';
         // Iterate through all of the matrix blocks
-        if ($blocks instanceof MatrixBlockQuery) {
+        if ($blocks instanceof EntryQuery) {
             $blocks = $blocks->all();
         }
         foreach ($blocks as $block) {
             try {
-                $matrixBlockTypeModel = $block->getType();
+                $matrixEntryTypeModel = $block->getType();
             } catch (InvalidConfigException $e) {
-                $matrixBlockTypeModel = null;
+                $matrixEntryTypeModel = null;
             }
             // Find any text fields inside of the matrix block
-            if ($matrixBlockTypeModel) {
+            if ($matrixEntryTypeModel) {
                 $fieldClasses = FieldHelper::FIELD_CLASSES[FieldHelper::TEXT_FIELD_CLASS_KEY];
-                $fields = $matrixBlockTypeModel->getCustomFields();
+                $fields = $matrixEntryTypeModel->getCustomFields();
 
                 foreach ($fields as $field) {
                     /** @var array $fieldClasses */
@@ -217,7 +213,7 @@ class Text
      * Extract text from all of the blocks in a Neo field, concatenating it
      * together.
      *
-     * @param NeoBlockQuery|NeoBlock[] $blocks
+     * @param NeoBlockQuery|NeoBlock[]|array $blocks
      * @param string $fieldHandle
      *
      * @return string
@@ -233,63 +229,13 @@ class Text
             $blocks = $blocks->all();
         }
         foreach ($blocks as $block) {
-            try {
-                $neoBlockTypeModel = $block->getType();
-            } catch (InvalidConfigException $e) {
-                $neoBlockTypeModel = null;
-            }
-            // Find any text fields inside of the matrix block
-            if ($neoBlockTypeModel) {
+            $layout = $block->getFieldLayout();
+            // Find any text fields inside of the neo block
+            if ($layout) {
                 $fieldClasses = FieldHelper::FIELD_CLASSES[FieldHelper::TEXT_FIELD_CLASS_KEY];
-                $fields = $neoBlockTypeModel->getCustomFields();
-
-                foreach ($fields as $field) {
-                    /** @var array $fieldClasses */
-                    foreach ($fieldClasses as $fieldClassKey) {
-                        if ($field instanceof $fieldClassKey) {
-                            if ($field->handle === $fieldHandle || empty($fieldHandle)) {
-                                $result .= self::extractTextFromField($block[$field->handle]) . ' ';
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        return $result;
-    }
-
-    /**
-     * Extract text from all of the blocks in a matrix field, concatenating it
-     * together.
-     *
-     * @param SuperTableBlockQuery|SuperTableBlock[] $blocks
-     * @param string $fieldHandle
-     *
-     * @return string
-     */
-    public static function extractTextFromSuperTable($blocks, $fieldHandle = ''): string
-    {
-        if (empty($blocks)) {
-            return '';
-        }
-        $result = '';
-        // Iterate through all of the matrix blocks
-        if ($blocks instanceof SuperTableBlockQuery) {
-            $blocks = $blocks->all();
-        }
-        foreach ($blocks as $block) {
-            try {
-                $superTableBlockTypeModel = $block->getType();
-            } catch (InvalidConfigException $e) {
-                $superTableBlockTypeModel = null;
-            }
-            // Find any text fields inside of the matrix block
-            if ($superTableBlockTypeModel) {
-                $fieldClasses = FieldHelper::FIELD_CLASSES[FieldHelper::TEXT_FIELD_CLASS_KEY];
-                $fields = $superTableBlockTypeModel->getCustomFields();
-
-                foreach ($fields as $field) {
+                $fieldElements = $layout->getCustomFieldElements();
+                foreach ($fieldElements as $fieldElement) {
+                    $field = $fieldElement->getField();
                     /** @var array $fieldClasses */
                     foreach ($fieldClasses as $fieldClassKey) {
                         if ($field instanceof $fieldClassKey) {
@@ -337,9 +283,7 @@ class Text
             return $text;
         }
 
-        $result = is_array($keywords)
-            ? implode(', ', array_slice(array_keys($keywords), 0, $limit))
-            : (string)$keywords;
+        $result = implode(', ', array_slice(array_keys($keywords), 0, $limit));
 
         return self::sanitizeUserInput($result);
     }
@@ -375,9 +319,7 @@ class Text
             return $text;
         }
 
-        $result = is_array($sentences)
-            ? implode(' ', $sentences)
-            : (string)$sentences;
+        $result = implode(' ', $sentences);
 
         return self::sanitizeUserInput($result);
     }
@@ -406,7 +348,7 @@ class Text
         // Change single brackets to parenthesis
         $str = preg_replace('/{/', '(', $str);
         $str = preg_replace('/}/', ')', $str);
-        if (empty($str) || is_array($str)) {
+        if (empty($str)) {
             $str = '';
         }
 
@@ -460,6 +402,17 @@ class Text
         return $text;
     }
 
+    /**
+     * Is $var an array or array-like object?
+     *
+     * @param $var
+     * @return bool
+     */
+    public static function isArrayLike($var): bool
+    {
+        return is_array($var) || ($var instanceof Collection);
+    }
+
     // Protected Static Methods
     // =========================================================================
 
@@ -479,7 +432,7 @@ class Text
 
         $className = 'PhpScience\\TextRank\\Tool\\StopWords\\' . ucfirst($language);
         if (class_exists($className)) {
-            $stopWords = new $className;
+            $stopWords = new $className();
         }
 
         return $stopWords;

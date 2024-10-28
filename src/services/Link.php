@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -31,7 +31,7 @@ class Link extends MetaService
     // Constants
     // =========================================================================
 
-    const DEFAULT_TYPE = null;
+    public const DEFAULT_TYPE = null;
 
     // Public Methods
     // =========================================================================
@@ -47,7 +47,7 @@ class Link extends MetaService
      */
     public function get(string $key, string $handle = self::GENERAL_HANDLE)
     {
-        /** @var  $metaItem MetaLink */
+        /** @var MetaLink $metaItem */
         $metaItem = Seomatic::$plugin->metaContainers->getMetaItemByKey($key, MetaLinkContainer::CONTAINER_TYPE);
 
         return $metaItem;

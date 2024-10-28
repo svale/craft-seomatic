@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * @link      https://nystudio107.com/
  * @copyright Copyright (c) 2017 nystudio107
@@ -38,11 +38,6 @@ class SitemapController extends Controller
      */
     public $siteId;
 
-    /**
-     * @var bool Should the sitemap generation simply be queued, rather than run immediately?
-     */
-    public $queue = false;
-
     // Protected Properties
     // =========================================================================
 
@@ -65,7 +60,6 @@ class SitemapController extends Controller
         return [
             'handle',
             'siteId',
-            'queue',
         ];
     }
 
@@ -89,6 +83,7 @@ class SitemapController extends Controller
         foreach ($siteIds as $siteId) {
             $metaBundles = Seomatic::$plugin->metaBundles->getContentMetaBundlesForSiteId($siteId);
             Seomatic::$plugin->metaBundles->pruneVestigialMetaBundles($metaBundles);
+
             /** @var MetaBundle $metaBundle */
             foreach ($metaBundles as $metaBundle) {
                 $process = false;
@@ -103,17 +98,33 @@ class SitemapController extends Controller
                         . ', siteId '
                         . $siteId
                         . PHP_EOL;
-                    // Generate the sitemap so it is in the cache
+
+                    $seoElement = Seomatic::$plugin->seoElements->getSeoElementByMetaBundleType($metaBundle->sourceBundleType);
+                    $elementQuery = $seoElement::sitemapElementsQuery($metaBundle);
+                    $pageSize = (int) $metaBundle->metaSitemapVars->sitemapPageSize;
+                    $sitemapLimit = (int) $metaBundle->metaSitemapVars->sitemapLimit;
+
+                    if (!empty($pageSize)) {
+                        $total = empty($sitemapLimit) ? $elementQuery->count() : min($elementQuery->count(), $sitemapLimit);
+                        $pageCount = ceil($total / $pageSize);
+                    } else {
+                        $pageCount = 1;
+                    }
+
                     $site = Craft::$app->getSites()->getSiteById($metaBundle->sourceSiteId);
+                    $sitemap = SitemapTemplate::create();
                     if ($site) {
-                        $sitemap = SitemapTemplate::create();
-                        $sitemap->render([
-                            'groupId' => $site->groupId,
-                            'siteId' => $metaBundle->sourceSiteId,
-                            'handle' => $metaBundle->sourceHandle,
-                            'type' => $metaBundle->sourceBundleType,
-                            'immediately' => true,
-                        ]);
+                        for ($pageNum = 1; $pageNum <= $pageCount; $pageNum++) {
+                            echo sprintf('Generating page %d of %d' . PHP_EOL, $pageNum, $pageCount);
+                            $sitemap->render([
+                                'groupId' => $site->groupId,
+                                'siteId' => $metaBundle->sourceSiteId,
+                                'handle' => $metaBundle->sourceHandle,
+                                'type' => $metaBundle->sourceBundleType,
+                                'page' => $pageNum,
+                            ]);
+                        }
+                        // Generate the sitemap so it is in the cache
                     }
 
                     echo '---' . PHP_EOL;

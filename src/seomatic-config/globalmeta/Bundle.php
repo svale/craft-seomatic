@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -19,7 +19,7 @@ use nystudio107\seomatic\services\MetaBundles;
  */
 
 return [
-    'bundleVersion' => '1.0.62',
+    'bundleVersion' => '1.0.71',
     'sourceBundleType' => MetaBundles::GLOBAL_META_BUNDLE,
     'sourceId' => 1,
     'sourceName' => MetaBundles::GLOBAL_META_BUNDLE,

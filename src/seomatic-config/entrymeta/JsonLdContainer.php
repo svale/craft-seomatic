@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -47,10 +47,10 @@ return [
                     'id' => '{{ parseEnv(seomatic.site.identity.genericUrl) }}#identity',
                 ],
                 'creator' => [
-                    'id' => '{{ parseEnv(seomatic.site.identity.genericUrl) }}#creator',
+                    'id' => '{{ parseEnv(seomatic.site.creator.genericUrl) }}#creator',
                 ],
                 'publisher' => [
-                    'id' => '{{ parseEnv(seomatic.site.identity.genericUrl) }}#creator',
+                    'id' => '{{ parseEnv(seomatic.site.creator.genericUrl) }}#creator',
                 ],
                 'image' => [
                     'type' => 'ImageObject',

@@ -1,13 +1,11 @@
-[![Scrutinizer Code Quality](https://scrutinizer-ci.com/g/nystudio107/craft-seomatic/badges/quality-score.png?b=v4)](https://scrutinizer-ci.com/g/nystudio107/craft-seomatic/?branch=v4) [![Build Status](https://scrutinizer-ci.com/g/nystudio107/craft-seomatic/badges/build.png?b=v4)](https://scrutinizer-ci.com/g/nystudio107/craft-seomatic/build-status/v4) 
-[![Code Intelligence Status](https://scrutinizer-ci.com/g/nystudio107/craft-seomatic/badges/code-intelligence.svg?b=v4)](https://scrutinizer-ci.com/code-intelligence) [![Code Coverage](https://scrutinizer-ci.com/g/nystudio107/craft-seomatic/badges/coverage.png?b=v4)](https://scrutinizer-ci.com/g/nystudio107/craft-seomatic/?branch=v4)
+[![Scrutinizer Code Quality](https://scrutinizer-ci.com/g/nystudio107/craft-seomatic/badges/quality-score.png?b=v5)](https://scrutinizer-ci.com/g/nystudio107/craft-seomatic/?branch=v5) [![Build Status](https://scrutinizer-ci.com/g/nystudio107/craft-seomatic/badges/build.png?b=v5)](https://scrutinizer-ci.com/g/nystudio107/craft-seomatic/build-status/v5) 
+[![Code Intelligence Status](https://scrutinizer-ci.com/g/nystudio107/craft-seomatic/badges/code-intelligence.svg?b=v5)](https://scrutinizer-ci.com/code-intelligence) [![Code Coverage](https://scrutinizer-ci.com/g/nystudio107/craft-seomatic/badges/coverage.png?b=v5)](https://scrutinizer-ci.com/g/nystudio107/craft-seomatic/?branch=v5)
 
-# SEOmatic plugin for Craft CMS 4.x
+# SEOmatic plugin for Craft CMS 5.x
 
-SEOmatic facilitates [modern SEO best practices](https://nystudio107.com/blog/modern-seo-snake-oil-vs-substance) & implementation for Craft CMS 4. It is a turnkey SEO system that is comprehensive, powerful, and flexible.
+SEOmatic facilitates [modern SEO best practices](https://nystudio107.com/blog/modern-seo-snake-oil-vs-substance) & implementation for Craft CMS 5. It is a turnkey SEO system that is comprehensive, powerful, and flexible.
 
 ![Screenshot](./docs/docs/resources/img/plugin-banner.jpg)
-
-Related: [SEOmatic for Craft 2.x](https://github.com/nystudio107/seomatic). SEOmatic for Craft CMS 3 is a complete re-write & re-architecture from scratch.
 
 **Note**: _The license fee for this plugin is $99.00 via the Craft Plugin Store._
 
@@ -21,7 +19,7 @@ SEOmatic is the SEO tool that the SEO experts at [Moz.com](https://moz.com/) and
 
 ## Requirements
 
-This plugin requires Craft CMS 4.0.0 or later.
+This plugin requires Craft CMS 5.0.0 or later.
 
 ## Installation
 
@@ -39,7 +37,7 @@ To install SEOmatic, follow these steps:
 
 You can also install SEOmatic via the **Plugin Store** in the Craft Control Panel.
 
-SEOmatic works on Craft 4.x.
+SEOmatic works on Craft 5.x.
 
 ## Documentation
 

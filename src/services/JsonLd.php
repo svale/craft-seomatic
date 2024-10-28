@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -31,7 +31,7 @@ class JsonLd extends MetaService
     // Constants
     // =========================================================================
 
-    const DEFAULT_TYPE = 'Thing';
+    public const DEFAULT_TYPE = 'Thing';
 
     // Public Methods
     // =========================================================================
@@ -44,7 +44,7 @@ class JsonLd extends MetaService
      */
     public function get(string $key, string $handle = self::GENERAL_HANDLE)
     {
-        /** @var  $metaItem MetaJsonLd */
+        /** @var MetaJsonLd $metaItem */
         $metaItem = Seomatic::$plugin->metaContainers->getMetaItemByKey($key, MetaJsonLdContainer::CONTAINER_TYPE);
 
         return $metaItem;

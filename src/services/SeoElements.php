@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -17,11 +17,13 @@ use craft\base\ElementInterface;
 use craft\events\RegisterComponentTypesEvent;
 use nystudio107\seomatic\base\GqlSeoElementInterface;
 use nystudio107\seomatic\base\SeoElementInterface;
+use nystudio107\seomatic\seoelements\SeoCampaign;
 use nystudio107\seomatic\seoelements\SeoCategory;
 use nystudio107\seomatic\seoelements\SeoDigitalProduct;
 use nystudio107\seomatic\seoelements\SeoEntry;
 use nystudio107\seomatic\seoelements\SeoEvent;
 use nystudio107\seomatic\seoelements\SeoProduct;
+use nystudio107\seomatic\seoelements\SeoShopifyProduct;
 use nystudio107\seomatic\Seomatic;
 
 /**
@@ -53,23 +55,25 @@ class SeoElements extends Component
      * );
      * ```
      */
-    const EVENT_REGISTER_SEO_ELEMENT_TYPES = 'registerSeoElementTypes';
+    public const EVENT_REGISTER_SEO_ELEMENT_TYPES = 'registerSeoElementTypes';
 
-    const DEFAULT_SEO_ELEMENT_TYPES = [
+    public const DEFAULT_SEO_ELEMENT_TYPES = [
+        SeoCampaign::class,
         SeoCategory::class,
         SeoDigitalProduct::class,
         SeoEntry::class,
         SeoEvent::class,
         SeoProduct::class,
+        SeoShopifyProduct::class,
     ];
 
     // Protected Properties
     // =========================================================================
 
     /**
-     * @var SeoElementInterface[] indexed by [sourceType]
+     * @var class-string<SeoElementInterface>[] indexed by [sourceType]
      */
-    protected $seoElements;
+    protected array $seoElements = [];
 
     // Public Methods
     // =========================================================================
@@ -77,21 +81,22 @@ class SeoElements extends Component
     /**
      * @param null|string $metaBundleType
      *
-     * @return SeoElementInterface|null
+     * @return class-string<SeoElementInterface>|null
      */
-    public function getSeoElementByMetaBundleType($metaBundleType)
+    public function getSeoElementByMetaBundleType(?string $metaBundleType): ?string
     {
         if ($metaBundleType === null) {
             return null;
         }
         $seoElements = $this->getAllSeoElementTypes();
+
         return $seoElements[$metaBundleType] ?? null;
     }
 
     /**
      * Returns all available field type classes.
      *
-     * @return string[] The available field type classes
+     * @return class-string<SeoElementInterface>[] The available field type classes
      */
     public function getAllSeoElementTypes(bool $useCache = true): array
     {
@@ -110,7 +115,7 @@ class SeoElements extends Component
         ]);
         $this->trigger(self::EVENT_REGISTER_SEO_ELEMENT_TYPES, $event);
         // Index the array by META_BUNDLE_TYPE
-        /** @var SeoElementInterface $seoElement */
+        /** @var class-string<SeoElementInterface> $seoElement */
         foreach ($event->types as $seoElement) {
             $requiredPlugin = $seoElement::getRequiredPluginHandle();
             if ($requiredPlugin === null || Craft::$app->getPlugins()->getPlugin($requiredPlugin)) {
@@ -132,8 +137,8 @@ class SeoElements extends Component
     public function getMetaBundleTypeFromElement(ElementInterface $element)
     {
         $seoElements = $this->getAllSeoElementTypes();
+        /** @var SeoElementInterface $seoElement */
         foreach ($seoElements as $metaBundleType => $seoElement) {
-            /** @var SeoElementInterface $seoElement */
             foreach ($seoElement::getElementClasses() as $elementClass) {
                 if ($element instanceof $elementClass) {
                     return $metaBundleType;

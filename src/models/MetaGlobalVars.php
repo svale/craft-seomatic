@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -83,7 +83,7 @@ class MetaGlobalVars extends InheritableSettingsModel
      */
     public $seoImageDescription;
     /**
-     * @var string The search engine friendly URL that you want the search engines to treat as authoritative.
+     * @var string|object The search engine friendly URL that you want the search engines to treat as authoritative.
      */
     public $canonicalUrl;
     /**
@@ -203,7 +203,7 @@ class MetaGlobalVars extends InheritableSettingsModel
         // Find any instances of image-related fields that contain Twig code, and access assets
         // using the old `[0]` array syntax with `.collect()[0]`
         foreach (self::ADJUST_QUERY_ACCESS_FIELDS as $queryField) {
-            if (!empty($this->$queryField) && str_contains($this->$queryField, '{')) {
+            if (!empty($this->$queryField) && str_contains($this->$queryField, '{') && !str_contains($this->$queryField, '[0].src')) {
                 $this->$queryField = preg_replace('/(?<!\))\[0]/', '.collect()[0]', $this->$queryField);
             }
         }

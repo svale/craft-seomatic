@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -28,6 +28,7 @@ use nystudio107\seomatic\models\MetaBundle;
 use nystudio107\seomatic\Seomatic;
 use Solspace\Calendar\Bundles\GraphQL\Interfaces\EventInterface;
 use Solspace\Calendar\Calendar as CalendarPlugin;
+use Solspace\Calendar\Elements\Db\EventQuery;
 use Solspace\Calendar\Elements\Event;
 use Solspace\Calendar\Events\DeleteModelEvent;
 use Solspace\Calendar\Events\SaveModelEvent;
@@ -45,12 +46,12 @@ class SeoEvent implements SeoElementInterface, GqlSeoElementInterface
     // Constants
     // =========================================================================
 
-    const META_BUNDLE_TYPE = 'event';
-    const ELEMENT_CLASSES = [
+    public const META_BUNDLE_TYPE = 'event';
+    public const ELEMENT_CLASSES = [
         Event::class,
     ];
-    const REQUIRED_PLUGIN_HANDLE = 'calendar';
-    const CONFIG_FILE_PATH = 'eventmeta/Bundle';
+    public const REQUIRED_PLUGIN_HANDLE = 'calendar';
+    public const CONFIG_FILE_PATH = 'eventmeta/Bundle';
 
     // Public Static Methods
     // =========================================================================
@@ -86,7 +87,7 @@ class SeoEvent implements SeoElementInterface, GqlSeoElementInterface
         BaseEvent::on(
             CalendarsService::class,
             CalendarsService::EVENT_AFTER_SAVE,
-            function (SaveModelEvent $event) {
+            function(SaveModelEvent $event) {
                 Craft::debug(
                     'CalendarsService::EVENT_AFTER_DELETE',
                     __METHOD__
@@ -97,7 +98,7 @@ class SeoEvent implements SeoElementInterface, GqlSeoElementInterface
         BaseEvent::on(
             CalendarsService::class,
             CalendarsService::EVENT_AFTER_DELETE,
-            function (DeleteModelEvent $event) {
+            function(DeleteModelEvent $event) {
                 Craft::debug(
                     'CalendarsService::EVENT_AFTER_DELETE',
                     __METHOD__
@@ -112,7 +113,7 @@ class SeoEvent implements SeoElementInterface, GqlSeoElementInterface
             BaseEvent::on(
                 CalendarsService::class,
                 CalendarsService::EVENT_AFTER_SAVE,
-                function (SaveModelEvent $event) {
+                function(SaveModelEvent $event) {
                     Craft::debug(
                         'CalendarsService::EVENT_AFTER_SAVE',
                         __METHOD__
@@ -137,7 +138,7 @@ class SeoEvent implements SeoElementInterface, GqlSeoElementInterface
             BaseEvent::on(
                 CalendarsService::class,
                 CalendarsService::EVENT_AFTER_DELETE,
-                function (DeleteModelEvent $event) {
+                function(DeleteModelEvent $event) {
                     Craft::debug(
                         'CalendarsService::EVENT_AFTER_DELETE',
                         __METHOD__
@@ -168,7 +169,7 @@ class SeoEvent implements SeoElementInterface, GqlSeoElementInterface
         BaseEvent::on(
             Event::class,
             Event::EVENT_DEFINE_SIDEBAR_HTML,
-            static function (DefineHtmlEvent $event) {
+            static function(DefineHtmlEvent $event) {
                 Craft::debug(
                     'Entry::EVENT_DEFINE_SIDEBAR_HTML',
                     __METHOD__
@@ -216,8 +217,7 @@ class SeoEvent implements SeoElementInterface, GqlSeoElementInterface
         /** @var Site $site */
         foreach ($sites as $site) {
             $seoElement = self::class;
-            /** @var SeoElementInterface $seoElement */
-            Seomatic::$plugin->metaBundles->createMetaBundleFromSeoElement($seoElement, $sourceModel, $site->id);
+            Seomatic::$plugin->metaBundles->createMetaBundleFromSeoElement($seoElement, $sourceModel, $site->id, null, true);
         }
     }
 
@@ -228,7 +228,7 @@ class SeoEvent implements SeoElementInterface, GqlSeoElementInterface
      */
     public static function getElementRefHandle(): string
     {
-        return Event::refHandle() ?? 'event';
+        return Event::refHandle();
     }
 
     /**
@@ -240,7 +240,9 @@ class SeoEvent implements SeoElementInterface, GqlSeoElementInterface
      */
     public static function sitemapElementsQuery(MetaBundle $metaBundle): ElementQueryInterface
     {
-        $query = Event::find()
+        /** @var EventQuery $query */
+        $query = Event::find();
+        $query
             ->setCalendar($metaBundle->sourceHandle)
             ->setLoadOccurrences(false)
             ->siteId((int)$metaBundle->sourceSiteId)
@@ -262,9 +264,8 @@ class SeoEvent implements SeoElementInterface, GqlSeoElementInterface
     public static function sitemapAltElement(
         MetaBundle $metaBundle,
         int        $elementId,
-        int        $siteId
-    )
-    {
+        int        $siteId,
+    ) {
         return Event::find()
             ->id($elementId)
             ->siteId($siteId)
@@ -284,11 +285,14 @@ class SeoEvent implements SeoElementInterface, GqlSeoElementInterface
     public static function previewUri(string $sourceHandle, $siteId)
     {
         $uri = null;
-        $element = Event::find()
+        /** @var EventQuery $query */
+        $query = Event::find();
+        $element = $query
             ->setCalendar($sourceHandle)
             ->siteId($siteId)
             ->one();
         if ($element) {
+            /** @var ElementInterface $element */
             $uri = $element->uri;
         }
 
@@ -383,6 +387,7 @@ class SeoEvent implements SeoElementInterface, GqlSeoElementInterface
     public static function mostRecentElement(Model $sourceModel, int $sourceSiteId)
     {
         /** @var CalendarModel $sourceModel */
+        /** @phpstan-ignore-next-line */
         return Event::find()
             ->setCalendar($sourceModel->handle)
             ->siteId($sourceSiteId)

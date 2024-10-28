@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * @link      https://nystudio107.com/
  * @copyright Copyright (c) 2019 nystudio107
@@ -17,6 +17,7 @@ use nystudio107\seomatic\helpers\ArrayHelper;
 use nystudio107\seomatic\Seomatic;
 use yii\web\BadRequestHttpException;
 use yii\web\Response;
+use function count;
 
 /**
  * @author    nystudio107
@@ -28,12 +29,12 @@ class ContentSeoController extends Controller
     // Constants
     // =========================================================================
 
-    const SORT_MAP = [
+    public const SORT_MAP = [
         'DESC' => SORT_DESC,
         'ASC' => SORT_ASC,
     ];
 
-    const ALLOWED_SORT_FIELDS = [
+    public const ALLOWED_SORT_FIELDS = [
         'sourceName',
         'sourceType',
     ];
@@ -42,7 +43,7 @@ class ContentSeoController extends Controller
     // =========================================================================
 
     /**
-     * @var    bool|array
+     * @inheritdoc
      */
     protected array|bool|int $allowAnonymous = [
     ];
@@ -67,9 +68,8 @@ class ContentSeoController extends Controller
         int    $page = 1,
         int    $per_page = 20,
                $filter = '',
-               $siteId = 0
-    ): Response
-    {
+               $siteId = 0,
+    ): Response {
         $data = [];
         $sortField = 'sourceName';
         $sortType = 'ASC';
@@ -153,8 +153,8 @@ class ContentSeoController extends Controller
                     $dataItem['robots'] = $metaBundle->metaGlobalVars->robots;
                     // Calculate the setup stat
                     $stat = 0;
-                    $numGrades = \count(SettingsController::SETUP_GRADES);
-                    $numFields = \count(SettingsController::SEO_SETUP_FIELDS);
+                    $numGrades = count(SettingsController::SETUP_GRADES);
+                    $numFields = count(SettingsController::SEO_SETUP_FIELDS);
                     foreach (SettingsController::SEO_SETUP_FIELDS as $setupField => $setupLabel) {
                         $stat += (int)!empty($metaBundle->metaGlobalVars[$setupField]);
                         $value = $variables['contentSetupChecklist'][$setupField]['value'] ?? 0;

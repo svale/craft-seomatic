@@ -1,5 +1,5 @@
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -19,7 +19,7 @@ import ContentSeoTable from '@/vue/ContentSeoTable.vue';
 
 Vue.use(VueEvents);
 // Create our vue instance
-const vm = new Vue({
+new Vue({
   el: "#cp-nav-content",
   components: {
     'content-seo-table': ContentSeoTable,

@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -66,7 +66,7 @@ class MetaBundle extends FluentModel
     public $sourceType;
 
     /**
-     * @var int
+     * @var int|null
      */
     public $typeId;
 
@@ -91,22 +91,22 @@ class MetaBundle extends FluentModel
     public $sourceDateUpdated;
 
     /**
-     * @var MetaGlobalVars
+     * @var MetaGlobalVars|array|null
      */
     public $metaGlobalVars;
 
     /**
-     * @var MetaSiteVars
+     * @var MetaSiteVars|array|null
      */
     public $metaSiteVars;
 
     /**
-     * @var MetaSitemapVars
+     * @var MetaSitemapVars|array|null
      */
     public $metaSitemapVars;
 
     /**
-     * @var MetaContainer[]
+     * @var MetaContainer[]|array|null
      */
     public $metaContainers;
 
@@ -116,12 +116,12 @@ class MetaBundle extends FluentModel
     public $redirectsContainer;
 
     /**
-     * @var FrontendTemplateContainer
+     * @var FrontendTemplateContainer|array|null
      */
     public $frontendTemplatesContainer;
 
     /**
-     * @var MetaBundleSettings
+     * @var MetaBundleSettings|array|null
      */
     public $metaBundleSettings;
 
@@ -140,9 +140,7 @@ class MetaBundle extends FluentModel
     {
         self::cleanProperties(__CLASS__, $config);
         $model = new MetaBundle($config);
-        if ($model) {
-            $model->normalizeMetaBundleData($parse);
-        }
+        $model->normalizeMetaBundleData($parse);
 
         return $model;
     }
@@ -164,25 +162,24 @@ class MetaBundle extends FluentModel
                 $this->$property = JsonHelper::decodeIfJson($value);
             }
         }
-
         // Meta global variables
-        if ($this->metaGlobalVars !== null && is_array($this->metaGlobalVars)) {
+        if (is_array($this->metaGlobalVars)) {
             $this->metaGlobalVars = MetaGlobalVars::create($this->metaGlobalVars);
         }
         // Meta site variables
-        if ($this->metaSiteVars !== null && is_array($this->metaSiteVars)) {
+        if (is_array($this->metaSiteVars)) {
             $this->metaSiteVars = MetaSiteVars::create($this->metaSiteVars);
         }
         // Meta sitemap variables
-        if ($this->metaSitemapVars !== null && is_array($this->metaSitemapVars)) {
+        if (is_array($this->metaSitemapVars)) {
             $this->metaSitemapVars = MetaSitemapVars::create($this->metaSitemapVars);
         }
         // Meta bundle settings
-        if ($this->metaBundleSettings !== null && is_array($this->metaBundleSettings)) {
+        if (is_array($this->metaBundleSettings)) {
             $this->metaBundleSettings = MetaBundleSettings::create($this->metaBundleSettings);
         }
         // Frontend templates
-        if ($this->frontendTemplatesContainer !== null && is_array($this->frontendTemplatesContainer)) {
+        if (is_array($this->frontendTemplatesContainer)) {
             $this->frontendTemplatesContainer = FrontendTemplateContainer::create($this->frontendTemplatesContainer);
         }
         // Create our variable so that meta containers can be parsed based on dynamic values
@@ -271,29 +268,29 @@ class MetaBundle extends FluentModel
                 [
                     'sourceId',
                     'sourceSiteId',
-                    'typeId'
+                    'typeId',
                 ],
                 'number',
-                'min' => 1
+                'skipOnEmpty' => true,
             ],
             [
                 [
-                    'sourceDateUpdated'
+                    'sourceDateUpdated',
                 ],
-                DateTimeValidator::class
+                DateTimeValidator::class,
             ],
             [
                 [
                     'sourceAltSiteSettings',
                 ],
-                'safe'
+                'safe',
             ],
             [
                 [
                     'metaContainers',
                     'redirectsContainer',
                 ],
-                ArrayValidator::class
+                ArrayValidator::class,
             ],
             [
                 [
@@ -303,7 +300,7 @@ class MetaBundle extends FluentModel
                     'metaBundleSettings',
                     'frontendTemplatesContainer',
                 ],
-                'safe'
+                'safe',
             ],
         ];
 
@@ -322,7 +319,7 @@ class MetaBundle extends FluentModel
                 'class' => EnvAttributeParserBehavior::class,
                 'attributes' => [
                 ],
-            ]
+            ],
         ]);
     }
 }

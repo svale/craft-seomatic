@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -13,10 +13,16 @@ namespace nystudio107\seomatic\helpers;
 
 use Craft;
 use craft\helpers\Json as JsonHelper;
+use Exception;
 use nystudio107\seomatic\models\MetaJsonLd;
 use nystudio107\seomatic\Seomatic;
+use ReflectionClass;
+use ReflectionException;
 use yii\caching\TagDependency;
 use yii\helpers\Markdown;
+use function get_class;
+use function is_array;
+use function is_string;
 
 /**
  * @author    nystudio107
@@ -28,19 +34,19 @@ class Schema
     // Constants
     // =========================================================================
 
-    const SCHEMA_PATH_DELIMITER = '.';
-    const MENU_INDENT_STEP = 4;
+    public const SCHEMA_PATH_DELIMITER = '.';
+    public const MENU_INDENT_STEP = 4;
 
-    const SCHEMA_TYPES = [
+    public const SCHEMA_TYPES = [
         'siteSpecificType',
         'siteSubType',
         'siteType',
     ];
 
-    const GLOBAL_SCHEMA_CACHE_TAG = 'seomatic_schema';
-    const SCHEMA_CACHE_TAG = 'seomatic_schema_';
+    public const GLOBAL_SCHEMA_CACHE_TAG = 'seomatic_schema';
+    public const SCHEMA_CACHE_TAG = 'seomatic_schema_';
 
-    const CACHE_KEY = 'seomatic_schema_';
+    public const CACHE_KEY = 'seomatic_schema_';
 
     // Static Methods
     // =========================================================================
@@ -114,22 +120,20 @@ class Schema
         $result = [];
         $jsonLdType = MetaJsonLd::create($schemaType);
 
-        if ($jsonLdType) {
-            // Get the static properties
-            try {
-                $classRef = new \ReflectionClass(\get_class($jsonLdType));
-            } catch (\ReflectionException $e) {
-                $classRef = null;
-            }
-            if ($classRef) {
-                $result = $classRef->getStaticProperties();
-                if (isset($result['schemaTypeDescription'])) {
-                    $description = $result['schemaTypeDescription'];
-                    $description = preg_replace("`\[\[([A-z]*)\]\]`", '[$1](https://schema.org/$1)', $description);
-                    $description = Markdown::process((string)$description);
-                    $description = str_replace(['<p>', '</p>', '\n'], ['', '', ' '], $description);
-                    $result['schemaTypeDescription'] = $description;
-                }
+        // Get the static properties
+        try {
+            $classRef = new ReflectionClass(get_class($jsonLdType));
+        } catch (ReflectionException $e) {
+            $classRef = null;
+        }
+        if ($classRef) {
+            $result = $classRef->getStaticProperties();
+            if (isset($result['schemaTypeDescription'])) {
+                $description = $result['schemaTypeDescription'];
+                $description = preg_replace("`\[\[([A-z]*)\]\]`", '[$1](https://schema.org/$1)', $description);
+                $description = Markdown::process((string)$description);
+                $description = str_replace(['<p>', '</p>', '\n'], ['', '', ' '], $description);
+                $result['schemaTypeDescription'] = $description;
             }
         }
 
@@ -149,26 +153,20 @@ class Schema
         while ($schemaType) {
             $className = 'nystudio107\\seomatic\\models\\jsonld\\' . $schemaType;
             if (class_exists($className)) {
-                try {
-                    $classRef = new \ReflectionClass($className);
-                } catch (\ReflectionException $e) {
-                    $classRef = null;
-                }
-                if ($classRef) {
-                    $staticProps = $classRef->getStaticProperties();
+                $classRef = new ReflectionClass($className);
+                $staticProps = $classRef->getStaticProperties();
 
-                    foreach ($staticProps as $key => $value) {
-                        if ($key[0] === '_') {
-                            $newKey = ltrim($key, '_');
-                            $staticProps[$newKey] = $value;
-                            unset($staticProps[$key]);
-                        }
+                foreach ($staticProps as $key => $value) {
+                    if ($key[0] === '_') {
+                        $newKey = ltrim($key, '_');
+                        $staticProps[$newKey] = $value;
+                        unset($staticProps[$key]);
                     }
-                    $result[$schemaType] = $staticProps;
-                    $schemaType = $staticProps['schemaTypeExtends'];
-                    if ($schemaType === 'JsonLdType') {
-                        $schemaType = null;
-                    }
+                }
+                $result[$schemaType] = $staticProps;
+                $schemaType = $staticProps['schemaTypeExtends'];
+                if ($schemaType === 'JsonLdType') {
+                    $schemaType = null;
                 }
             }
         }
@@ -187,7 +185,7 @@ class Schema
     {
         try {
             $schemaTypes = self::getSchemaArray($path);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Craft::error($e->getMessage(), __METHOD__);
             return [];
         }
@@ -207,7 +205,7 @@ class Schema
         $result = [];
         try {
             $schemaTypes = self::getSchemaArray($path);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Craft::error($e->getMessage(), __METHOD__);
             return [];
         }
@@ -219,17 +217,13 @@ class Schema
     }
 
     /**
-     * Return a flattened, indented menu of the given $path
-     *
-     * @param string $path
-     *
      * @return array
      */
     public static function getTypeTree(): array
     {
         try {
             $schemaTypes = self::getSchemaTree();
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Craft::error($e->getMessage(), __METHOD__);
             return [];
         }
@@ -247,7 +241,7 @@ class Schema
      * @param string $path
      *
      * @return array
-     * @throws \Exception
+     * @throws Exception
      */
     public static function getSchemaArray($path = ''): array
     {
@@ -260,7 +254,7 @@ class Schema
         $cache = Craft::$app->getCache();
         $typesArray = $cache->getOrSet(
             self::CACHE_KEY . 'schemaArray',
-            function () use ($path) {
+            function() use ($path) {
                 Craft::info(
                     'schemaArray cache miss' . $path,
                     __METHOD__
@@ -268,7 +262,7 @@ class Schema
                 $filePath = Craft::getAlias('@nystudio107/seomatic/resources/schema/tree.jsonld');
                 $schemaTypes = JsonHelper::decode(@file_get_contents($filePath));
                 if (empty($schemaTypes)) {
-                    throw new \Exception(Craft::t('seomatic', 'Schema tree file not found'));
+                    throw new Exception(Craft::t('seomatic', 'Schema tree file not found'));
                 }
                 $schemaTypes = self::makeSchemaAssociative($schemaTypes);
                 $schemaTypes = self::orphanChildren($schemaTypes);
@@ -287,7 +281,7 @@ class Schema
                 }
             }
         }
-        if (!\is_array($typesArray)) {
+        if (!is_array($typesArray)) {
             $typesArray = [];
         }
 
@@ -299,7 +293,7 @@ class Schema
      *
      * @param string $schemaName
      * @return array
-     * @throws \Exception
+     * @throws Exception
      */
     public static function getTypeMetaInfo($schemaName): array
     {
@@ -319,6 +313,44 @@ class Schema
     }
 
     /**
+     * @return array
+     * @throws Exception
+     */
+    public static function getSchemaTree()
+    {
+        $dependency = new TagDependency([
+            'tags' => [
+                self::GLOBAL_SCHEMA_CACHE_TAG,
+                self::SCHEMA_CACHE_TAG . 'schemaTree',
+            ],
+        ]);
+        $cache = Craft::$app->getCache();
+        $typesArray = $cache->getOrSet(
+            self::CACHE_KEY . 'schemaTree',
+            function() {
+                Craft::info(
+                    'schemaArray cache miss',
+                    __METHOD__
+                );
+                $filePath = Craft::getAlias('@nystudio107/seomatic/resources/schema/tree.jsonld');
+                $schemaTree = JsonHelper::decode(@file_get_contents($filePath));
+                if (empty($schemaTree)) {
+                    throw new Exception(Craft::t('seomatic', 'Schema tree file not found'));
+                }
+
+                return $schemaTree;
+            },
+            Seomatic::$cacheDuration,
+            $dependency
+        );
+        if (!is_array($typesArray)) {
+            $typesArray = [];
+        }
+
+        return $typesArray;
+    }
+
+    /**
      * Traverse the schema tree and pluck a single type array from it
      *
      * @param $schemaTree
@@ -327,7 +359,7 @@ class Schema
      */
     protected static function pluckSchemaArray($schemaTree, $schemaName): array
     {
-        if (!empty($schemaTree['children']) && \is_array($schemaTree['children'])) {
+        if (!empty($schemaTree['children']) && is_array($schemaTree['children'])) {
             foreach ($schemaTree['children'] as $key => $value) {
                 if (!empty($value['name']) && $value['name'] === $schemaName) {
                     unset($value['children']);
@@ -347,44 +379,6 @@ class Schema
     }
 
     /**
-     * @return array
-     * @throws \Exception
-     */
-    public static function getSchemaTree()
-    {
-        $dependency = new TagDependency([
-            'tags' => [
-                self::GLOBAL_SCHEMA_CACHE_TAG,
-                self::SCHEMA_CACHE_TAG . 'schemaTree',
-            ],
-        ]);
-        $cache = Craft::$app->getCache();
-        $typesArray = $cache->getOrSet(
-            self::CACHE_KEY . 'schemaTree',
-            function () {
-                Craft::info(
-                    'schemaArray cache miss',
-                    __METHOD__
-                );
-                $filePath = Craft::getAlias('@nystudio107/seomatic/resources/schema/tree.jsonld');
-                $schemaTree = JsonHelper::decode(@file_get_contents($filePath));
-                if (empty($schemaTree)) {
-                    throw new \Exception(Craft::t('seomatic', 'Schema tree file not found'));
-                }
-
-                return $schemaTree;
-            },
-            Seomatic::$cacheDuration,
-            $dependency
-        );
-        if (!\is_array($typesArray)) {
-            $typesArray = [];
-        }
-
-        return $typesArray;
-    }
-
-    /**
      * @param array $typesArray
      * @param       $indentLevel
      *
@@ -395,7 +389,7 @@ class Schema
         $result = [];
         foreach ($typesArray as $key => $value) {
             $indent = html_entity_decode(str_repeat('&nbsp;', $indentLevel));
-            if (\is_array($value)) {
+            if (is_array($value)) {
                 $result[$key] = $indent . $key;
                 $value = self::flattenSchemaArray($value, $indentLevel + self::MENU_INDENT_STEP);
                 $result = array_merge($result, $value);
@@ -420,7 +414,7 @@ class Schema
     {
         $result = [];
 
-        if (!empty($typesArray['children']) && \is_array($typesArray['children'])) {
+        if (!empty($typesArray['children']) && is_array($typesArray['children'])) {
             foreach ($typesArray['children'] as $key => $value) {
                 $key = '';
                 if (!empty($value['name'])) {
@@ -457,10 +451,10 @@ class Schema
             if (isset($value['name'])) {
                 $key = $value['name'];
             }
-            if (\is_array($value)) {
+            if (is_array($value)) {
                 $value = self::makeSchemaAssociative($value);
             }
-            if (isset($value['layer']) && \is_string($value['layer'])) {
+            if (isset($value['layer']) && is_string($value['layer'])) {
                 if ($value['layer'] === 'core' || $value['layer'] === 'pending') {
                     $result[$key] = $value;
                 }
@@ -490,7 +484,7 @@ class Schema
         if (isset($typesArray['attic']) && $typesArray['attic']) {
             return [];
         }
-        if (isset($typesArray['name']) && \is_string($typesArray['name'])) {
+        if (isset($typesArray['name']) && is_string($typesArray['name'])) {
             $children = [];
             $name = $typesArray['name'];
             // Construct a path-based $id, excluding the top-level `Thing` schema
@@ -502,7 +496,7 @@ class Schema
                 $id = implode(self::SCHEMA_PATH_DELIMITER, [
                     $parts[0],
                     $parts[1],
-                    end($parts)
+                    end($parts),
                 ]);
             }
             if (!empty($typesArray['children'])) {
@@ -551,7 +545,7 @@ class Schema
         $cache = Craft::$app->getCache();
         return $cache->getOrSet(
             self::CACHE_KEY . 'googleRichSnippets',
-            function () {
+            function() {
                 Craft::info(
                     'googleRichSnippets cache miss',
                     __METHOD__
@@ -559,7 +553,7 @@ class Schema
                 $filePath = Craft::getAlias('@nystudio107/seomatic/resources/schema/google-rich-snippets.json');
                 $googleRichSnippetTypes = JsonHelper::decode(@file_get_contents($filePath));
                 if (empty($googleRichSnippetTypes)) {
-                    throw new \Exception(Craft::t('seomatic', 'Google rich snippets file not found'));
+                    throw new Exception(Craft::t('seomatic', 'Google rich snippets file not found'));
                 }
 
                 return $googleRichSnippetTypes;

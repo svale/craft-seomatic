@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -27,7 +27,7 @@ class CanonicalLink extends MetaLink
     // Constants
     // =========================================================================
 
-    const ITEM_TYPE = 'CanonicalLink';
+    public const ITEM_TYPE = 'CanonicalLink';
 
     // Static Methods
     // =========================================================================
@@ -79,15 +79,9 @@ class CanonicalLink extends MetaLink
             $robots = Seomatic::$seomaticVariable->tag->get('robots');
             if ($robots !== null && $robots->include && !Seomatic::$previewingMetaContainers && !Seomatic::$settings->alwaysIncludeCanonicalUrls) {
                 $robotsArray = $robots->renderAttributes();
-                $content = $robotsArray['content'] ?? '';
-                if (!empty($content)) {
-                    if (\is_array($content)) {
-                        if (\in_array('noindex', $content, true) || \in_array('none', $content, true)) {
-                            return false;
-                        }
-                    } else if ($content === 'noindex' || $content === 'none') {
-                        return false;
-                    }
+                $contentArray = explode(',', $robotsArray['content'] ?? '');
+                if (in_array('noindex', $contentArray, true) || in_array('none', $contentArray, true)) {
+                    return false;
                 }
             }
             // Ensure the href is a full url

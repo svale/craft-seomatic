@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -17,6 +17,7 @@ use craft\errors\SiteNotFoundException;
 use nystudio107\seomatic\helpers\ImageTransform as ImageTransformHelper;
 use nystudio107\seomatic\Seomatic;
 use yii\caching\TagDependency;
+use yii\web\BadRequestHttpException;
 
 /**
  * @author    nystudio107
@@ -28,7 +29,7 @@ class Container
     // Constants
     // =========================================================================
 
-    const CACHE_KEY = 'seomatic_metacontroller_';
+    public const CACHE_KEY = 'seomatic_metacontroller_';
 
     // Static Methods
     // =========================================================================
@@ -47,9 +48,8 @@ class Container
         array  $containerKeys,
         string $uri,
         int    $siteId = null,
-        bool   $asArray = false
-    ): array
-    {
+        bool   $asArray = false,
+    ): array {
         // Normalize the incoming URI to account for `__home__`
         $uri = ($uri === '__home__') ? '' : $uri;
         // Determine the siteId
@@ -79,9 +79,18 @@ class Container
                 = Seomatic::$plugin->metaBundles->getMetaSourceFromElement($element);
         }
         $metaContainers = Seomatic::$plugin->metaContainers;
+        // Cache requests that have a token associated with them separately
+        $token = '';
+        $request = Craft::$app->getRequest();
+        if (!$request->isConsoleRequest) {
+            try {
+                $token = $request->getToken() ?? '';
+            } catch (BadRequestHttpException $e) {
+            }
+        }
         // Get our cache key
         $asArrayKey = $asArray ? 'true' : 'false';
-        $cacheKey = $uri . $siteId . implode($containerKeys) . $asArrayKey . Seomatic::$environment;
+        $cacheKey = $uri . $siteId . implode($containerKeys) . $asArrayKey . Seomatic::$environment . $token;
         // Load the meta containers
         $dependency = new TagDependency([
             'tags' => [
@@ -91,11 +100,10 @@ class Container
                 $metaContainers::METACONTAINER_CACHE_TAG . $cacheKey,
             ],
         ]);
-
         $cache = Craft::$app->getCache();
         $result = $cache->getOrSet(
             self::CACHE_KEY . $cacheKey,
-            function () use ($uri, $siteId, $containerKeys, $asArray) {
+            function() use ($uri, $siteId, $containerKeys, $asArray) {
                 $result = [];
                 Craft::info(
                     'Meta controller container cache miss: ' . $uri . '/' . $siteId,

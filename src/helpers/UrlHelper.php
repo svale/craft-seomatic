@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -15,7 +15,9 @@ use Craft;
 use craft\errors\SiteNotFoundException;
 use craft\helpers\UrlHelper as CraftUrlHelper;
 use nystudio107\seomatic\Seomatic;
+use Throwable;
 use yii\base\Exception;
+use function is_string;
 
 /**
  * @author    nystudio107
@@ -35,26 +37,56 @@ class UrlHelper extends CraftUrlHelper
      */
     public static function siteUrl(string $path = '', $params = null, string $scheme = null, int $siteId = null): string
     {
-        $siteUrl = Seomatic::$settings->siteUrlOverride;
+        try {
+            $siteUrl = self::getSiteUrlOverrideSetting($siteId);
+        } catch (Throwable $e) {
+            // That's okay
+        }
         if (!empty($siteUrl)) {
             $siteUrl = MetaValue::parseString($siteUrl);
             // Extract out just the path part
             $parts = self::decomposeUrl($path);
             $path = $parts['path'] . $parts['suffix'];
-            $url = rtrim($siteUrl, '/') . '/' . ltrim($path, '/');
+            $url = self::mergeUrlWithPath($siteUrl, $path);
             // Handle trailing slashes properly for generated URLs
             $generalConfig = Craft::$app->getConfig()->getGeneral();
-            if ($generalConfig->addTrailingSlashesToUrls && !preg_match('/\.[^\/]+$/', $url)) {
+            if ($generalConfig->addTrailingSlashesToUrls && !preg_match('/(.+\?.*)|(\.[^\/]+$)/', $url)) {
                 $url = rtrim($url, '/') . '/';
             }
             if (!$generalConfig->addTrailingSlashesToUrls) {
                 $url = rtrim($url, '/');
             }
 
-            return $url;
+            return DynamicMeta::sanitizeUrl(parent::urlWithParams($url, $params ?? []), false, false);
         }
 
         return DynamicMeta::sanitizeUrl(parent::siteUrl($path, $params, $scheme, $siteId), false, false);
+    }
+
+    /**
+     * Merge the $url and $path together, combining any overlapping path segments
+     *
+     * @param string $url
+     * @param string $path
+     * @return string
+     */
+    public static function mergeUrlWithPath(string $url, string $path): string
+    {
+        $overlap = 0;
+        $url = rtrim($url, '/') . '/';
+        $path = '/' . ltrim($path, '/');
+        $urlOffset = strlen($url);
+        $pathLength = strlen($path);
+        $pathOffset = 0;
+        while ($urlOffset > 0 && $pathOffset < $pathLength) {
+            $urlOffset--;
+            $pathOffset++;
+            if (str_starts_with($path, substr($url, $urlOffset, $pathOffset))) {
+                $overlap = $pathOffset;
+            }
+        }
+
+        return rtrim($url, '/') . '/' . ltrim(substr($path, $overlap), '/');
     }
 
     /**
@@ -65,7 +97,7 @@ class UrlHelper extends CraftUrlHelper
     public static function pageTriggerValue(): array
     {
         $pageTrigger = Craft::$app->getConfig()->getGeneral()->pageTrigger;
-        if (!\is_string($pageTrigger) || $pageTrigger === '') {
+        if (!is_string($pageTrigger) || $pageTrigger === '') {
             $pageTrigger = 'p';
         }
         // Is this query string-based pagination?
@@ -121,7 +153,7 @@ class UrlHelper extends CraftUrlHelper
 
         // Handle trailing slashes properly for generated URLs
         $generalConfig = Craft::$app->getConfig()->getGeneral();
-        if ($generalConfig->addTrailingSlashesToUrls && !preg_match('/\.[^\/]+$/', $url)) {
+        if ($generalConfig->addTrailingSlashesToUrls && !preg_match('/(.+\?.*)|(\.[^\/]+$)/', $url)) {
             $url = rtrim($url, '/') . '/';
         }
         if (!$generalConfig->addTrailingSlashesToUrls) {
@@ -146,6 +178,9 @@ class UrlHelper extends CraftUrlHelper
         }
         if (isset($urlParts['host'])) {
             $encodedUrl .= $urlParts['host'];
+        }
+        if (isset($urlParts['port'])) {
+            $encodedUrl .= ':' . $urlParts['port'];
         }
         if (isset($urlParts['path'])) {
             $encodedUrl .= $urlParts['path'];
@@ -178,6 +213,37 @@ class UrlHelper extends CraftUrlHelper
     public static function urlHasSubDir(string $url): bool
     {
         return !empty(parse_url(trim($url, '/'), PHP_URL_PATH));
+    }
+
+    /**
+     * Return the siteUrlOverride setting, which can be a string or an array of site URLs
+     * indexed by the site handle
+     *
+     * @param int|null $siteId
+     * @return string
+     * @throws Exception
+     * @throws SiteNotFoundException
+     */
+    public static function getSiteUrlOverrideSetting(?int $siteId = null): string
+    {
+        // If the override is a string, just return it
+        $siteUrlOverride = Seomatic::$settings->siteUrlOverride;
+        if (is_string($siteUrlOverride)) {
+            return $siteUrlOverride;
+        }
+        // If the override is an array, pluck the appropriate one by handle
+        if (is_array($siteUrlOverride)) {
+            $sites = Craft::$app->getSites();
+            $site = $sites->getCurrentSite();
+            if ($siteId !== null) {
+                $site = $sites->getSiteById($siteId, true);
+                if (!$site) {
+                    throw new Exception('Invalid site ID: ' . $siteId);
+                }
+            }
+
+            return $siteUrlOverride[$site->handle] ?? '';
+        }
     }
 
     // Protected Methods

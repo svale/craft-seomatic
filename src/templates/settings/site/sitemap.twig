@@ -4,15 +4,11 @@
 
 {% block header %}
     {{ block('pageTitle') }}
-    {{ block('contextMenu') }}
+
     <div class="flex-grow"></div>
     <div class="flex-grow"></div>
     {{ block('copyFromMenu') }}
     {{ block('actionButton') }}
-{% endblock %}
-
-{% block contextMenu %}
-    {% include "seomatic/settings/_includes/sites-menu.twig" %}
 {% endblock %}
 
 {% block copyFromMenu %}
@@ -26,6 +22,11 @@
     {{ redirectInput("seomatic/site/#{currentSubSection}/#{currentSiteHandle}") }}
 
     {% if currentUser.can("seomatic:site-settings:sitemap") %}
+        <div class="flex">
+            <div class="flex-grow"></div>
+            <a href="{{ seomatic.helper.sitemapIndexForSiteId(currentSiteId) }}" class="btn livepreviewbtn"
+               rel="noopener" target="_blank">{{ 'View Sitemap Index'|t("seomatic") }}</a>
+        </div>
         <div id="tab-content-sitemap">
             <div class="field">
                 <div class="heading">

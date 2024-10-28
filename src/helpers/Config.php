@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -11,10 +11,10 @@
 
 namespace nystudio107\seomatic\helpers;
 
-use nystudio107\seomatic\Seomatic;
-
 use Craft;
 use craft\helpers\StringHelper;
+use nystudio107\seomatic\Seomatic;
+use function is_array;
 
 /**
  * @author    nystudio107
@@ -26,7 +26,7 @@ class Config
     // Constants
     // =========================================================================
 
-    const LOCAL_CONFIG_DIR = 'seomatic-config';
+    public const LOCAL_CONFIG_DIR = 'seomatic-config';
 
     // Static Methods
     // =========================================================================
@@ -36,7 +36,7 @@ class Config
      * @nystudio107/seomatic
      *
      * @param string $filePath
-     * @param null   $alias
+     * @param string|null $alias
      *
      * @return array
      */
@@ -59,7 +59,7 @@ class Config
             }
         }
 
-        if (!\is_array($config = @include $path)) {
+        if (!is_array($config = @include $path)) {
             return [];
         }
 
@@ -69,7 +69,7 @@ class Config
         }
 
         // If no environment was specified, just look in the '*' array
-        if (Seomatic::$environment === null) {
+        if (empty(Seomatic::$environment)) {
             return $config['*'];
         }
 

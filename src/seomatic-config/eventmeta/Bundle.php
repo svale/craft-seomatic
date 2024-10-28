@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -19,7 +19,7 @@ use nystudio107\seomatic\seoelements\SeoEvent;
  */
 
 return [
-    'bundleVersion' => '1.0.2',
+    'bundleVersion' => '1.0.3',
     'sourceBundleType' => SeoEvent::getMetaBundleType(),
     'sourceId' => null,
     'sourceName' => null,
@@ -30,7 +30,7 @@ return [
     'sourceSiteId' => null,
     'sourceAltSiteSettings' => [
     ],
-    'sourceDateUpdated' => new \DateTime(),
+    'sourceDateUpdated' => new DateTime(),
     'metaGlobalVars' => Config::getConfigFromFile('eventmeta/GlobalVars'),
     'metaSiteVars' => Config::getConfigFromFile('eventmeta/SiteVars'),
     'metaSitemapVars' => Config::getConfigFromFile('eventmeta/SitemapVars'),

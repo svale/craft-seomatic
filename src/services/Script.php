@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -41,7 +41,7 @@ class Script extends MetaService
      */
     public function get(string $key, string $handle = self::GENERAL_HANDLE)
     {
-        /** @var  $metaItem MetaScript */
+        /** @var MetaScript $metaItem */
         $metaItem = Seomatic::$plugin->metaContainers->getMetaItemByKey($key, MetaScriptContainer::CONTAINER_TYPE);
 
         return $metaItem;

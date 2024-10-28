@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -8,8 +8,6 @@
  * @link      https://nystudio107.com
  * @copyright Copyright (c) 2017 nystudio107
  */
-
-use nystudio107\seomatic\base\SeoElementInterface;
 
 /**
  * @author    nystudio107
@@ -72,7 +70,7 @@ return [
     'sidebarDisplayPreviewTypes' => [
         'google',
         'twitter',
-        'facebook'
+        'facebook',
     ],
 
     // Should SEOmatic display the SEO Analysis sidebar?
@@ -81,7 +79,7 @@ return [
     // If `devMode` is on, prefix the <title> with this string
     'devModeTitlePrefix' => '&#x1f6a7; ',
 
-     //  Prefix the Control Panel <title> with this string
+    //  Prefix the Control Panel <title> with this string
     'cpTitlePrefix' => '&#x2699; ',
 
     // If `devMode` is on, prefix the Control Panel <title> with this string
@@ -110,6 +108,9 @@ return [
 
     // Whether to dynamically include the `x-default` hreflang tags
     'addXDefaultHrefLang' => true,
+
+    // The site to use for the `x-default` hreflang tag (0 defaults to the Primary site)
+    'xDefaultSite' => 0,
 
     // Whether to dynamically include hreflang tags on paginated pages
     'addPaginatedHreflang' => true,
@@ -141,6 +142,12 @@ return [
     // SEOmatic uses the Craft `siteUrl` to generate the external URLs.  If you
     // are using it in a non-standard environment, such as a headless GraphQL or
     // ElementAPI server, you can override what it uses for the `siteUrl` below.
+    // This can be either a simple string, or an array of strings indexed by the site
+    // handle, for multi-site setups. e.g.:
+    // 'siteUrlOverride' => [
+    //     'default' => 'http://example.com/',
+    //     'spanish' => 'http://example.com/es/',
+    // ],
     'siteUrlOverride' => '',
 
     // The duration of the SEOmatic meta cache in seconds. Null means always cached until explicitly broken
@@ -153,11 +160,17 @@ return [
     // Determines whether the JSON-LD endpoint should be enabled for anonymous frontend access
     'enableJsonLdEndpoint' => false,
 
+    // Determines whether the SEO File Link endpoint should be enabled for anonymous frontend access
+    'enableSeoFileLinkEndpoint' => false,
+
+    // Determines whether the SEOmatic debug toolbar panel should be added to the Yii2 debug toolbar
+    'enableDebugToolbarPanel' => true,
+
     // SeoElementInterface[] The default SeoElement type classes
     'defaultSeoElementTypes' => [
     ],
 
     // string[] URL params that are allowed to be considered part of the unique URL used for the metadata cache
     'allowedUrlParams' => [
-    ]
+    ],
 ];

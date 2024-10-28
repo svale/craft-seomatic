@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -18,7 +18,6 @@ use craft\errors\SiteNotFoundException;
 use craft\web\View;
 use nystudio107\seomatic\Seomatic;
 use ReflectionClass;
-use ReflectionException;
 use Throwable;
 use Twig\Markup;
 use yii\base\Exception;
@@ -36,20 +35,20 @@ class MetaValue
     // Constants
     // =========================================================================
 
-    const MAX_TEMPLATE_LENGTH = 4096;
-    const MAX_PARSE_TRIES = 5;
+    public const MAX_TEMPLATE_LENGTH = 4096;
+    public const MAX_PARSE_TRIES = 5;
     // Semicolon because that is the resolved config key when rendering tags,
     // kebab-case because that is the config keys as defined in the config files.
-    const NO_ALIASES = [
+    public const NO_ALIASES = [
         'twitter:site',
         'twitter:creator',
         'twitterSite',
         'twitterCreator',
     ];
-    const NO_PARSING = [
+    public const NO_PARSING = [
         'siteLinksSearchTarget',
     ];
-    const PARSE_ONCE = [
+    public const PARSE_ONCE = [
         'target',
         'urlTemplate',
     ];
@@ -89,9 +88,8 @@ class MetaValue
         $metaValue,
         bool $resolveAliases = true,
         bool $parseAsTwig = true,
-        $tries = self::MAX_PARSE_TRIES
-    )
-    {
+        $tries = self::MAX_PARSE_TRIES,
+    ) {
         // If it's a string, and there are no dynamic tags, just return the template
         if (is_string($metaValue) && !str_contains($metaValue, '{')) {
             return self::parseMetaString($metaValue, $resolveAliases, $parseAsTwig) ?? $metaValue;
@@ -113,8 +111,9 @@ class MetaValue
      *                              this array
      * @param bool $parseAsTwig Whether items should be parsed as a Twig
      *                              template in this array
+     * @param bool $recursive Whether to recursively parse the array
      */
-    public static function parseArray(array &$metaArray, bool $resolveAliases = true, bool $parseAsTwig = true)
+    public static function parseArray(array &$metaArray, bool $resolveAliases = true, bool $parseAsTwig = true, bool $recursive = false)
     {
         // Do this here as well so that parseString() won't potentially be constantly switching modes
         // while parsing through the array
@@ -128,6 +127,9 @@ class MetaValue
             }
         }
         foreach ($metaArray as $key => $value) {
+            if ($recursive && is_array($value)) {
+                self::parseArray($value, $resolveAliases, $parseAsTwig, $recursive);
+            }
             $shouldParse = $parseAsTwig;
             $shouldAlias = $resolveAliases;
             $tries = self::MAX_PARSE_TRIES;
@@ -206,17 +208,17 @@ class MetaValue
         if ($element !== null) {
             $refHandle = null;
             // Get a fallback from the element's root class name
-            try {
-                $reflector = new ReflectionClass($element);
-            } catch (ReflectionException $e) {
-                $reflector = null;
-                Craft::error($e->getMessage(), __METHOD__);
-            }
-            if ($reflector) {
-                $refHandle = strtolower($reflector->getShortName());
+            $reflector = new ReflectionClass($element);
+            $refHandle = strtolower($reflector->getShortName());
+            $elementRefHandle = $element::refHandle();
+            // Use the SeoElement interface to get the refHandle
+            $metaBundleSourceType = Seomatic::$plugin->seoElements->getMetaBundleTypeFromElement($element);
+            $seoElement = Seomatic::$plugin->seoElements->getSeoElementByMetaBundleType($metaBundleSourceType);
+            if ($seoElement) {
+                $elementRefHandle = $seoElement::getElementRefHandle();
             }
             // Prefer $element::refHandle()
-            $matchedElementType = $element::refHandle() ?? $refHandle ?? 'entry';
+            $matchedElementType = $elementRefHandle ?? $refHandle;
             if ($matchedElementType) {
                 self::$templateObjectVars[$matchedElementType] = $element;
                 self::$templatePreviewVars[$matchedElementType] = $element;
@@ -232,7 +234,7 @@ class MetaValue
     // =========================================================================
 
     /**
-     * @param string|Asset $metaValue
+     * @param string|object $metaValue
      * @param bool $resolveAliases Whether @ aliases should be resolved
      *                                     in this string
      * @param bool $parseAsTwig Whether items should be parsed as a
@@ -305,7 +307,6 @@ class MetaValue
                 return trim(html_entity_decode((string)$metaValue, ENT_NOQUOTES, 'UTF-8'));
             }
             if ($metaValue instanceof Asset) {
-                /** @var Asset $metaValue */
                 return $metaValue->uri;
             }
         }

@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -17,6 +17,7 @@ use craft\base\Element;
 use craft\base\ElementInterface;
 use craft\errors\SiteNotFoundException;
 use craft\events\RegisterUrlRulesEvent;
+use craft\models\Section;
 use craft\web\UrlManager;
 use nystudio107\seomatic\base\FrontendTemplate;
 use nystudio107\seomatic\base\SitemapInterface;
@@ -42,14 +43,13 @@ class Sitemaps extends Component implements SitemapInterface
     // Constants
     // =========================================================================
 
-    const SEOMATIC_SITEMAPINDEX_CONTAINER = Seomatic::SEOMATIC_HANDLE . SitemapIndexTemplate::TEMPLATE_TYPE;
+    public const SEOMATIC_SITEMAPINDEX_CONTAINER = Seomatic::SEOMATIC_HANDLE . SitemapIndexTemplate::TEMPLATE_TYPE;
 
-    const SEOMATIC_SITEMAP_CONTAINER = Seomatic::SEOMATIC_HANDLE . SitemapTemplate::TEMPLATE_TYPE;
+    public const SEOMATIC_SITEMAP_CONTAINER = Seomatic::SEOMATIC_HANDLE . SitemapTemplate::TEMPLATE_TYPE;
 
-    const SEOMATIC_SITEMAPCUSTOM_CONTAINER = Seomatic::SEOMATIC_HANDLE . SitemapCustomTemplate::TEMPLATE_TYPE;
+    public const SEOMATIC_SITEMAPCUSTOM_CONTAINER = Seomatic::SEOMATIC_HANDLE . SitemapCustomTemplate::TEMPLATE_TYPE;
 
-    const SEARCH_ENGINE_SUBMISSION_URLS = [
-        'google' => 'https://www.google.com/ping?sitemap=',
+    public const SEARCH_ENGINE_SUBMISSION_URLS = [
     ];
 
     // Protected Properties
@@ -83,7 +83,7 @@ class Sitemaps extends Component implements SitemapInterface
             Event::on(
                 UrlManager::class,
                 UrlManager::EVENT_REGISTER_SITE_URL_RULES,
-                function (RegisterUrlRulesEvent $event) {
+                function(RegisterUrlRulesEvent $event) {
                     Craft::debug(
                         'UrlManager::EVENT_REGISTER_SITE_URL_RULES',
                         __METHOD__
@@ -151,7 +151,6 @@ class Sitemaps extends Component implements SitemapInterface
         ];
         // Add all of the frontend container routes
         foreach ($this->sitemapTemplateContainer->data as $sitemapTemplate) {
-            /** @var $sitemapTemplate FrontendTemplate */
             $rules = array_merge(
                 $rules,
                 $sitemapTemplate->routeRules()
@@ -173,6 +172,7 @@ class Sitemaps extends Component implements SitemapInterface
         $seoElement = Seomatic::$plugin->seoElements->getSeoElementByMetaBundleType($metaBundle->sourceBundleType);
         if ($seoElement) {
             if (!empty($seoElement::typeMenuFromHandle($metaBundle->sourceHandle))) {
+                /** @var Section|null $section */
                 $section = $seoElement::sourceModelFromHandle($metaBundle->sourceHandle);
                 if ($section !== null) {
                     $entryTypes = $section->getEntryTypes();
@@ -228,6 +228,8 @@ class Sitemaps extends Component implements SitemapInterface
         if (Seomatic::$settings->sitemapsEnabled && Seomatic::$environment === 'live' && Seomatic::$settings->submitSitemaps) {
             // Submit the sitemap to each search engine
             $searchEngineUrls = self::SEARCH_ENGINE_SUBMISSION_URLS;
+            // Array is currently empty, but leave the code in place in case submission urls return
+            /** @phpstan-ignore-next-line */
             foreach ($searchEngineUrls as &$url) {
                 $groups = Craft::$app->getSites()->getAllGroups();
                 foreach ($groups as $group) {
@@ -305,6 +307,8 @@ class Sitemaps extends Component implements SitemapInterface
                 = Seomatic::$plugin->metaBundles->getMetaSourceFromElement($element);
             // Submit the sitemap to each search engine
             $searchEngineUrls = self::SEARCH_ENGINE_SUBMISSION_URLS;
+            // Array is currently empty, but leave the code in place in case submission urls return
+            /** @phpstan-ignore-next-line */
             foreach ($searchEngineUrls as &$url) {
                 $sitemapUrl = $this->sitemapUrlForBundle($sourceBundleType, $sourceHandle, $sourceSiteId);
                 if (!empty($sitemapUrl)) {
@@ -336,7 +340,7 @@ class Sitemaps extends Component implements SitemapInterface
      *
      * @return string
      */
-    public function sitemapUrlForBundle(string $sourceBundleType, string $sourceHandle, int $siteId = null): string
+    public function sitemapUrlForBundle(string $sourceBundleType, string $sourceHandle, int $siteId = null, int $page = null): string
     {
         $url = '';
         $sites = Craft::$app->getSites();
@@ -349,7 +353,7 @@ class Sitemaps extends Component implements SitemapInterface
             $sourceHandle,
             $siteId
         );
-        if ($site && $metaBundle) {
+        if ($site && $metaBundle && $metaBundle->metaSitemapVars->sitemapUrls) {
             try {
                 $url = UrlHelper::siteUrl(
                     '/sitemaps-'
@@ -360,7 +364,9 @@ class Sitemaps extends Component implements SitemapInterface
                     . $metaBundle->sourceHandle
                     . '-'
                     . $metaBundle->sourceSiteId
-                    . '-sitemap.xml',
+                    . '-sitemap'
+                    . (!empty($page) ? '-p' . $page : '')
+                    . '.xml',
                     null,
                     null,
                     $siteId
@@ -383,6 +389,8 @@ class Sitemaps extends Component implements SitemapInterface
         if (Seomatic::$settings->sitemapsEnabled && Seomatic::$environment === 'live' && Seomatic::$settings->submitSitemaps) {
             // Submit the sitemap to each search engine
             $searchEngineUrls = self::SEARCH_ENGINE_SUBMISSION_URLS;
+            // Array is currently empty, but leave the code in place in case submission urls return
+            /** @phpstan-ignore-next-line */
             foreach ($searchEngineUrls as &$url) {
                 $sitemapUrl = $this->sitemapCustomUrlForSiteId($siteId);
                 if (!empty($sitemapUrl)) {
@@ -499,36 +507,18 @@ class Sitemaps extends Component implements SitemapInterface
      * Invalidate the sitemap cache passed in $handle
      *
      * @param string $handle
-     * @param int $siteId
+     * @param int|null $siteId
      * @param string $type
      * @param bool $invalidateCache
      */
-    public function invalidateSitemapCache(string $handle, int $siteId, string $type, bool $invalidateCache = true)
+    public function invalidateSitemapCache(string $handle, ?int $siteId, string $type, bool $invalidateCache = true)
     {
-        // Since we want a stale-while-revalidate pattern, only invalidate the cache if we're asked to
-        if ($invalidateCache) {
-            $cache = Craft::$app->getCache();
-            TagDependency::invalidate($cache, SitemapTemplate::SITEMAP_CACHE_TAG . $handle . $siteId);
-            Craft::info(
-                'Sitemap cache cleared: ' . $handle,
-                __METHOD__
-            );
-        }
-        $sites = Craft::$app->getSites();
-        if ($siteId === null) {
-            $siteId = $sites->currentSite->id ?? 1;
-        }
-        $site = $sites->getSiteById($siteId);
-        $groupId = $site->groupId;
-        $sitemapTemplate = SitemapTemplate::create();
-        $xml = $sitemapTemplate->render(
-            [
-                'groupId' => $groupId,
-                'type' => $type,
-                'handle' => $handle,
-                'siteId' => $siteId,
-                'throwException' => false,
-            ]
+        // Always just invalidate the sitemap cache now, since we're doing paginated sitemaps
+        $cache = Craft::$app->getCache();
+        TagDependency::invalidate($cache, SitemapTemplate::SITEMAP_CACHE_TAG . $handle . $siteId);
+        Craft::info(
+            'Sitemap cache cleared: ' . $handle,
+            __METHOD__
         );
     }
 

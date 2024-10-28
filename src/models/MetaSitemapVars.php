@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -23,7 +23,7 @@ use nystudio107\seomatic\base\InheritableSettingsModel;
  */
 class MetaSitemapVars extends InheritableSettingsModel
 {
-    // Static Methods
+    // Public Properties
     // =========================================================================
 
     /**
@@ -31,44 +31,73 @@ class MetaSitemapVars extends InheritableSettingsModel
      */
     public $sitemapUrls;
 
-    // Public Properties
-    // =========================================================================
     /**
      * @var bool
      */
     public $sitemapAssets;
+
+    /**
+     * @var string
+     */
+    public $sitemapAssetTransform = null;
+
+    /**
+     * @var bool
+     */
+    public $newsSitemap = false;
+
+    /**
+     * @var string
+     */
+    public $newsPublicationName = '';
+
     /**
      * @var bool
      */
     public $sitemapFiles;
+
     /**
      * @var bool
      */
     public $sitemapAltLinks;
+
     /**
      * @var string
      */
     public $sitemapChangeFreq;
+
     /**
      * @var float
      */
     public $sitemapPriority;
+
     /**
      * @var null|int
      */
     public $sitemapLimit;
+
+    /**
+     * @var null|int
+     */
+    public $sitemapPageSize = 500;
+
     /**
      * @var null|int
      */
     public $structureDepth;
+
     /**
      * @var array
      */
     public $sitemapImageFieldMap = [];
+
     /**
      * @var array
      */
     public $sitemapVideoFieldMap = [];
+
+    // Static Methods
+    // =========================================================================
 
     /**
      * @param array $config
@@ -112,26 +141,29 @@ class MetaSitemapVars extends InheritableSettingsModel
             [
                 [
                     'sitemapChangeFreq',
+                    'newsPublicationName',
+                    'sitemapAssetTransform',
                 ],
                 'string',
             ],
             [
                 [
-                    'sitemapPriority'
+                    'sitemapPriority',
                 ],
-                'number'
+                'number',
             ],
             [
                 [
-                    'sitemapLimit'
+                    'sitemapLimit',
+                    'sitemapPageSize',
                 ],
-                'integer'
+                'integer',
             ],
             [
                 [
-                    'structureDepth'
+                    'structureDepth',
                 ],
-                'integer'
+                'integer',
             ],
             [
                 [
@@ -139,15 +171,16 @@ class MetaSitemapVars extends InheritableSettingsModel
                     'sitemapAssets',
                     'sitemapAltLinks',
                     'sitemapFiles',
+                    'newsSitemap',
                 ],
-                'boolean'
+                'boolean',
             ],
             [
                 [
                     'sitemapImageFieldMap',
-                    'sitemapVideoFieldMap'
+                    'sitemapVideoFieldMap',
                 ],
-                ArrayValidator::class
+                ArrayValidator::class,
             ],
         ];
     }

@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -11,14 +11,18 @@
 
 namespace nystudio107\seomatic\base;
 
-use nystudio107\seomatic\Seomatic;
+use Craft;
+use Exception;
+use nystudio107\seomatic\behaviors\MetaItemAttributeParserBehavior;
 use nystudio107\seomatic\helpers\ArrayHelper;
 use nystudio107\seomatic\helpers\Dependency;
 use nystudio107\seomatic\models\MetaJsonLd;
-
-use Craft;
-
+use nystudio107\seomatic\Seomatic;
 use yii\helpers\Inflector;
+use function count;
+use function get_class;
+use function is_array;
+use function is_string;
 
 /**
  * @author    nystudio107
@@ -35,7 +39,7 @@ abstract class MetaItem extends FluentModel implements MetaItemInterface
     // Constants
     // =========================================================================
 
-    const ARRAY_PROPERTIES = [
+    public const ARRAY_PROPERTIES = [
     ];
 
     // Public Methods
@@ -53,9 +57,9 @@ abstract class MetaItem extends FluentModel implements MetaItemInterface
             $envVars = null;
             try {
                 $envVars = ArrayHelper::getValue($this->environment, Seomatic::$environment);
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
             }
-            if (\is_array($envVars)) {
+            if (is_array($envVars)) {
                 foreach ($envVars as $key => $value) {
                     $attributes[$key] = $value;
                 }
@@ -142,9 +146,8 @@ abstract class MetaItem extends FluentModel implements MetaItemInterface
      */
     public function debugMetaItem(
         $errorLabel = 'Error: ',
-        array $scenarios = ['default' => 'error']
-    )
-    {
+        array $scenarios = ['default' => 'error'],
+    ) {
         $isMetaJsonLdModel = false;
         if (is_subclass_of($this, MetaJsonLd::class)) {
             $isMetaJsonLdModel = true;
@@ -157,7 +160,7 @@ abstract class MetaItem extends FluentModel implements MetaItemInterface
                 $extraInfo = '';
                 // Add a URL to the schema.org type if this is a MetaJsonLD object
                 if ($isMetaJsonLdModel) {
-                    /** @var  $this MetaJsonLd */
+                    /** @var MetaJsonLd $this */
                     $extraInfo = ' for http://schema.org/' . $this->type;
                 }
                 $errorMsg =
@@ -189,11 +192,10 @@ abstract class MetaItem extends FluentModel implements MetaItemInterface
                     // Extra debugging info for MetaJsonLd objects
                     if ($isMetaJsonLdModel) {
                         /** @var MetaJsonLd $className */
-                        $className = \get_class($this);
-                        if (!empty($className::$schemaPropertyDescriptions[$param])) {
+                        $className = get_class($this);
+                        if (!empty($className->schemaPropertyDescriptions[$param])) {
                             $errorMsg = Craft::t('seomatic', $errorLabel) . $param;
-                            /** @var $className MetaJsonLd */
-                            $errorMsg .= ' -> ' . $className::$schemaPropertyDescriptions[$param];
+                            $errorMsg .= ' -> ' . $className->schemaPropertyDescriptions[$param];
                             Craft::info($errorMsg, __METHOD__);
                         }
                     }
@@ -209,7 +211,7 @@ abstract class MetaItem extends FluentModel implements MetaItemInterface
      */
     public function tagAttributes(): array
     {
-        $attrs = $this->tagAttrs ?? [];
+        $attrs = $this->tagAttrs;
         if (!is_array($attrs)) {
             $attrs = [];
         }
@@ -245,16 +247,16 @@ abstract class MetaItem extends FluentModel implements MetaItemInterface
 
         // See if any of the potentially array properties actually are
         foreach (static::ARRAY_PROPERTIES as $arrayProperty) {
-            if (!empty($options[$arrayProperty]) && \is_array($options[$arrayProperty])) {
-                $optionsCount = \count($options[$arrayProperty]) > $optionsCount
-                    ? \count($options[$arrayProperty]) : $optionsCount;
+            if (!empty($options[$arrayProperty]) && is_array($options[$arrayProperty])) {
+                $optionsCount = count($options[$arrayProperty]) > $optionsCount
+                    ? count($options[$arrayProperty]) : $optionsCount;
             }
         }
         // Return an array of resulting options
         while ($optionsCount--) {
             $resultOptions = $options;
             foreach ($resultOptions as $key => $value) {
-                $resultOptions[$key] = (\is_array($value) && isset($value[$optionsCount]))
+                $resultOptions[$key] = (is_array($value) && isset($value[$optionsCount]))
                     ? $value[$optionsCount] : $value;
             }
             $result[] = $resultOptions;
@@ -271,18 +273,31 @@ abstract class MetaItem extends FluentModel implements MetaItemInterface
      */
     public function validateStringOrArray(
         $attribute,
-        $params
-    )
-    {
+        $params,
+    ) {
         $validated = false;
-        if (\is_string($attribute)) {
+        if (is_string($attribute)) {
             $validated = true;
         }
-        if (\is_array($attribute)) {
+        if (is_array($attribute)) {
             $validated = true;
         }
         if (!$validated) {
             $this->addError($attribute, 'Must be either a string or an array');
         }
+    }
+
+    /**
+     * @inheritdoc
+     */
+    protected function defineBehaviors(): array
+    {
+        return [
+            'parser' => [
+                'class' => MetaItemAttributeParserBehavior::class,
+                'attributes' => [
+                ],
+            ],
+        ];
     }
 }

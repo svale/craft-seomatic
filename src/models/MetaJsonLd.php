@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -14,6 +14,8 @@ namespace nystudio107\seomatic\models;
 use Craft;
 use craft\helpers\Json;
 use craft\helpers\Template;
+use craft\validators\UrlValidator;
+use DateTime;
 use Exception;
 use nystudio107\seomatic\base\NonceItem;
 use nystudio107\seomatic\helpers\JsonLd as JsonLdHelper;
@@ -21,7 +23,6 @@ use nystudio107\seomatic\Seomatic;
 use yii\validators\BooleanValidator;
 use yii\validators\DateValidator;
 use yii\validators\NumberValidator;
-use yii\validators\UrlValidator;
 use function in_array;
 use function is_array;
 use function is_object;
@@ -30,6 +31,12 @@ use function is_object;
  * @author    nystudio107
  * @package   Seomatic
  * @since     3.0.0
+ *
+ * @property-read array $googleRecommendedSchema
+ * @property-read array $googleRequiredSchema
+ * @property-read array $schemaPropertyDescriptions
+ * @property-read array $schemaPropertyExpectedTypes
+ * @property-read array $schemaPropertyNames
  */
 class MetaJsonLd extends NonceItem
 {
@@ -49,28 +56,28 @@ class MetaJsonLd extends NonceItem
      *
      * @var string
      */
-    static public string $schemaTypeName = 'JsonLd';
+    public static string $schemaTypeName = 'JsonLd';
 
     /**
      * The Schema.org Type Scope
      *
      * @var string
      */
-    static public string $schemaTypeScope = 'https://schema.org/';
+    public static string $schemaTypeScope = 'https://schema.org/';
 
     /**
      * The Schema.org Type Description
      *
      * @var string
      */
-    static public string $schemaTypeDescription = 'Generic JsonLd type.';
+    public static string $schemaTypeDescription = 'Generic JsonLd type.';
 
     /**
      * The Schema.org Type Extends
      *
      * @var string
      */
-    static public string $schemaTypeExtends = '';
+    public static string $schemaTypeExtends = '';
 
     // Public Properties
     // =========================================================================
@@ -85,7 +92,7 @@ class MetaJsonLd extends NonceItem
     /**
      * The item's type.
      *
-     * @var string [schema.org types: Text]
+     * @var string|null [schema.org types: Text]
      */
     public $type;
 
@@ -246,9 +253,8 @@ class MetaJsonLd extends NonceItem
             'renderRaw' => true,
             'renderScriptTags' => true,
             'array' => false,
-        ]
-    ): string
-    {
+        ],
+    ): string {
         $html = '';
         $options = $this->tagAttributes();
         if ($this->prepForRender($options)) {
@@ -352,6 +358,16 @@ class MetaJsonLd extends NonceItem
     }
 
     /**
+     * We don't want Craft's base Model messing with our dateCreated etc properties
+     *
+     * @return array|string[]
+     */
+    public function datetimeAttributes(): array
+    {
+        return [];
+    }
+
+    /**
      * Validate the passed in $attribute based on $schemaPropertyExpectedTypes
      *
      * @param string $attribute the attribute currently being validated
@@ -359,9 +375,8 @@ class MetaJsonLd extends NonceItem
      */
     public function validateJsonSchema(
         $attribute,
-        $params
-    )
-    {
+        $params,
+    ) {
         if (!in_array($attribute, $this->getSchemaPropertyNames(), true)) {
             $this->addError($attribute, 'The attribute does not exist.');
         } else {
@@ -371,7 +386,7 @@ class MetaJsonLd extends NonceItem
             if (!is_array($dataToValidate)) {
                 $dataToValidate = [$dataToValidate];
             }
-            foreach ($dataToValidate as $data) {
+            foreach ($dataToValidate as $key => $data) {
                 /** @var array $expectedTypes */
                 foreach ($expectedTypes as $expectedType) {
                     $className = 'nystudio107\\seomatic\\models\\jsonld\\' . $expectedType;
@@ -383,7 +398,7 @@ class MetaJsonLd extends NonceItem
 
                         // Use Yii's validator for URLs
                         case 'URL':
-                            $validator = new UrlValidator;
+                            $validator = new UrlValidator();
                             if ($validator->validate($data, $error)) {
                                 $validated = true;
                             }
@@ -391,7 +406,7 @@ class MetaJsonLd extends NonceItem
 
                         // Use Yii's validator for Booleans
                         case 'Boolean':
-                            $validator = new BooleanValidator;
+                            $validator = new BooleanValidator();
                             if ($validator->validate($data, $error)) {
                                 $validated = true;
                             }
@@ -401,7 +416,7 @@ class MetaJsonLd extends NonceItem
                         case 'Number':
                         case 'Float':
                         case 'Integer':
-                            $validator = new NumberValidator;
+                            $validator = new NumberValidator();
                             if ($expectedType === 'Integer') {
                                 $validator->integerOnly = true;
                             }
@@ -412,8 +427,12 @@ class MetaJsonLd extends NonceItem
 
                         // Use Yii's validator for Dates
                         case 'Date':
-                            $validator = new DateValidator;
+                            $validator = new DateValidator();
                             $validator->type = DateValidator::TYPE_DATE;
+                            $validator->format = 'php:' . DateTime::ATOM;
+                            if ($validator->validate($data, $error)) {
+                                $validated = true;
+                            }
                             $validator->format = 'YYYY-MM-DD';
                             if ($validator->validate($data, $error)) {
                                 $validated = true;
@@ -422,7 +441,7 @@ class MetaJsonLd extends NonceItem
 
                         // Use Yii's validator for DateTimes
                         case 'DateTime':
-                            $validator = new DateValidator;
+                            $validator = new DateValidator();
                             $validator->type = DateValidator::TYPE_DATETIME;
                             $validator->format = 'YYYY-MM-DDThh:mm:ss.sTZD';
                             if ($validator->validate($data, $error)) {
@@ -432,7 +451,7 @@ class MetaJsonLd extends NonceItem
 
                         // Use Yii's validator for Times
                         case 'Time':
-                            $validator = new DateValidator;
+                            $validator = new DateValidator();
                             $validator->type = DateValidator::TYPE_TIME;
                             $validator->format = 'hh:mm:ss.sTZD';
                             if ($validator->validate($data, $error)) {
@@ -448,8 +467,18 @@ class MetaJsonLd extends NonceItem
 
                         // By default, assume it's a schema.org JSON-LD object, and validate that
                         default:
-                            if (is_object($data) && is_a($data, $className)) {
+                            // Allow for @id references
+                            if ($key === 'id') {
                                 $validated = true;
+                            }
+                            if (is_object($data) && ($data instanceof $className)) {
+                                $validated = true;
+                            }
+                            if (is_string($data)) {
+                                $targetClass = 'nystudio107\\seomatic\\models\\jsonld\\' . $data;
+                                if (class_exists($targetClass)) {
+                                    $validated = true;
+                                }
                             }
                             break;
                     }
@@ -476,6 +505,6 @@ class MetaJsonLd extends NonceItem
         return $result;
     }
 
-// Private Methods
+    // Private Methods
 // =========================================================================
 }

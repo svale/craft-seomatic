@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -14,7 +14,7 @@ namespace nystudio107\seomatic\services;
 use Craft;
 use craft\base\Component;
 use craft\elements\Asset;
-use craft\elements\db\MatrixBlockQuery;
+use craft\elements\db\EntryQuery;
 use craft\elements\db\TagQuery;
 use craft\helpers\Template;
 use craft\web\twig\variables\Paginate;
@@ -43,7 +43,7 @@ class Helper extends Component
     // Constants
     // =========================================================================
 
-    const TWITTER_TRANSFORM_MAP = [
+    public const TWITTER_TRANSFORM_MAP = [
         'summary' => 'twitter-summary',
         'summary_large_image' => 'twitter-large',
         'app' => 'twitter-large',
@@ -334,9 +334,9 @@ class Helper extends Component
      *
      * @return string
      */
-    public static function sitemapUrlForBundle(string $sourceType, string $sourceHandle, int $siteId = null): string
+    public static function sitemapUrlForBundle(string $sourceType, string $sourceHandle, int $siteId = null, int $page = 0): string
     {
-        return Seomatic::$plugin->sitemaps->sitemapUrlForBundle($sourceType, $sourceHandle, $siteId);
+        return Seomatic::$plugin->sitemaps->sitemapUrlForBundle($sourceType, $sourceHandle, $siteId, $page);
     }
 
     /**
@@ -368,7 +368,7 @@ class Helper extends Component
      * Extract text from all of the blocks in a matrix field, concatenating it
      * together.
      *
-     * @param MatrixBlockQuery $matrixQuery
+     * @param EntryQuery $matrixQuery
      * @param string $fieldHandle
      *
      * @return string
@@ -474,9 +474,8 @@ class Helper extends Component
         $asset,
         $transformName = '',
         $siteId = null,
-        $transformMode = null
-    ): string
-    {
+        $transformMode = null,
+    ): string {
         return ImageTransformHelper::socialTransformWidth($asset, $transformName, $siteId, $transformMode);
     }
 
@@ -495,9 +494,8 @@ class Helper extends Component
         $asset,
         $transformName = '',
         $siteId = null,
-        $transformMode = null
-    ): string
-    {
+        $transformMode = null,
+    ): string {
         return ImageTransformHelper::socialTransformHeight($asset, $transformName, $siteId, $transformMode);
     }
 

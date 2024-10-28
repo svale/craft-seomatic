@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -45,12 +45,12 @@ class SeoProduct implements SeoElementInterface, GqlSeoElementInterface
     // Constants
     // =========================================================================
 
-    const META_BUNDLE_TYPE = 'product';
-    const ELEMENT_CLASSES = [
+    public const META_BUNDLE_TYPE = 'product';
+    public const ELEMENT_CLASSES = [
         Product::class,
     ];
-    const REQUIRED_PLUGIN_HANDLE = 'commerce';
-    const CONFIG_FILE_PATH = 'productmeta/Bundle';
+    public const REQUIRED_PLUGIN_HANDLE = 'commerce';
+    public const CONFIG_FILE_PATH = 'productmeta/Bundle';
 
     // Public Static Methods
     // =========================================================================
@@ -106,7 +106,7 @@ class SeoProduct implements SeoElementInterface, GqlSeoElementInterface
         Event::on(
             ProductTypes::class,
             ProductTypes::EVENT_AFTER_SAVE_PRODUCTTYPE,
-            function (ProductTypeEvent $event) {
+            function(ProductTypeEvent $event) {
                 Craft::debug(
                     'ProductTypes::EVENT_AFTER_SAVE_PRODUCTTYPE',
                     __METHOD__
@@ -121,7 +121,7 @@ class SeoProduct implements SeoElementInterface, GqlSeoElementInterface
             Event::on(
                 ProductTypes::class,
                 ProductTypes::EVENT_AFTER_SAVE_PRODUCTTYPE,
-                static function (ProductTypeEvent $event) {
+                static function(ProductTypeEvent $event) {
                     Craft::debug(
                         'ProductTypes::EVENT_AFTER_SAVE_PRODUCTTYPE',
                         __METHOD__
@@ -172,18 +172,53 @@ class SeoProduct implements SeoElementInterface, GqlSeoElementInterface
         if ($request->getIsSiteRequest() && !$request->getIsConsoleRequest()) {
         }
 
+        /**
+         * N.B. This is in here seemingly twice (see the Product::EVENT_DEFINE_SIDEBAR_HTML below)
+         * because Commerce apparently doesn't render the templates in a way that causes the
+         * Product::EVENT_DEFINE_SIDEBAR_HTML to be thrown, despite there being code that implies it does:
+         * https://github.com/craftcms/commerce/blob/develop/src/elements/Product.php#L796
+         **/
+
+        // Install only for non-console Control Panel requests
+        if ($request->getIsCpRequest() && !$request->getIsConsoleRequest()) {
+            // Commerce Product Types sidebar
+            $commerce = CommercePlugin::getInstance();
+            if ($commerce !== null) {
+                Seomatic::$view->hook('cp.commerce.product.edit.details', static function(&$context) {
+                    $html = '';
+                    Seomatic::$view->registerAssetBundle(SeomaticAsset::class);
+                    /** @var Product $product */
+                    $product = $context[self::getElementRefHandle()] ?? null;
+                    if ($product !== null && $product->uri !== null) {
+                        Seomatic::$plugin->metaContainers->previewMetaContainers($product->uri, $product->siteId, true);
+                        // Render our preview sidebar template
+                        if (Seomatic::$settings->displayPreviewSidebar) {
+                            $html .= PluginTemplate::renderPluginTemplate('_sidebars/product-preview.twig');
+                        }
+                        // Render our analysis sidebar template
+// @TODO: This will be added an upcoming 'pro' edition
+//                if (Seomatic::$settings->displayAnalysisSidebar) {
+//                    $html .= PluginTemplate::renderPluginTemplate('_sidebars/product-analysis.twig');
+//                }
+                    }
+
+                    return $html;
+                });
+            }
+        }
+
         // Handler: Product::EVENT_DEFINE_SIDEBAR_HTML
         Event::on(
             Product::class,
             Product::EVENT_DEFINE_SIDEBAR_HTML,
-            static function (DefineHtmlEvent $event) {
+            static function(DefineHtmlEvent $event) {
                 Craft::debug(
                     'Product::EVENT_DEFINE_SIDEBAR_HTML',
                     __METHOD__
                 );
                 $html = '';
                 Seomatic::$view->registerAssetBundle(SeomaticAsset::class);
-                /** @var  $product Product */
+                /** @var Product $product */
                 $product = $event->sender ?? null;
                 if ($product !== null && $product->uri !== null) {
                     Seomatic::$plugin->metaContainers->previewMetaContainers($product->uri, $product->siteId, true);
@@ -232,9 +267,8 @@ class SeoProduct implements SeoElementInterface, GqlSeoElementInterface
     public static function sitemapAltElement(
         MetaBundle $metaBundle,
         int        $elementId,
-        int        $siteId
-    )
-    {
+        int        $siteId,
+    ) {
         return Product::find()
             ->id($elementId)
             ->siteId($siteId)
@@ -448,8 +482,7 @@ class SeoProduct implements SeoElementInterface, GqlSeoElementInterface
         /** @var Site $site */
         foreach ($sites as $site) {
             $seoElement = self::class;
-            /** @var SeoElementInterface $seoElement */
-            Seomatic::$plugin->metaBundles->createMetaBundleFromSeoElement($seoElement, $sourceModel, $site->id);
+            Seomatic::$plugin->metaBundles->createMetaBundleFromSeoElement($seoElement, $sourceModel, $site->id, null, true);
         }
     }
 

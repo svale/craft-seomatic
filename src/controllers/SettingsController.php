@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * @link      https://nystudio107.com/
  * @copyright Copyright (c) 2017 nystudio107
@@ -15,7 +15,9 @@ use craft\errors\MissingComponentException;
 use craft\helpers\UrlHelper;
 use craft\models\Site;
 use craft\web\Controller;
+use craft\web\UrlManager;
 use DateTime;
+use Illuminate\Support\Collection;
 use nystudio107\seomatic\assetbundles\seomatic\SeomaticAsset;
 use nystudio107\seomatic\autocompletes\TrackingVarsAutocomplete;
 use nystudio107\seomatic\helpers\ArrayHelper;
@@ -49,16 +51,16 @@ class SettingsController extends Controller
     // Constants
     // =========================================================================
 
-    const DOCUMENTATION_URL = 'https://github.com/nystudio107/craft-seomatic';
+    public const DOCUMENTATION_URL = 'https://github.com/nystudio107/craft-seomatic';
 
-    const SETUP_GRADES = [
+    public const SETUP_GRADES = [
         ['id' => 'data1', 'name' => 'A', 'color' => '#008002'],
         ['id' => 'data2', 'name' => 'B', 'color' => '#9ACD31'],
         ['id' => 'data4', 'name' => 'C', 'color' => '#FFA500'],
         ['id' => 'data5', 'name' => 'D', 'color' => '#8B0100'],
     ];
 
-    const SEO_SETUP_FIELDS = [
+    public const SEO_SETUP_FIELDS = [
         'mainEntityOfPage' => 'Main Entity of Page',
         'seoTitle' => 'SEO Title',
         'seoDescription' => 'SEO Description',
@@ -67,13 +69,13 @@ class SettingsController extends Controller
         'seoImageDescription' => 'SEO Image Description',
     ];
 
-    const SITE_SETUP_FIELDS = [
+    public const SITE_SETUP_FIELDS = [
         'siteName' => 'Site Name',
         'twitterHandle' => 'Twitter Handle',
         'facebookProfileId' => 'Facebook Profile ID',
     ];
 
-    const IDENTITY_SETUP_FIELDS = [
+    public const IDENTITY_SETUP_FIELDS = [
         'computedType' => 'Identity Entity Type',
         'genericName' => 'Identity Entity Name',
         'genericDescription' => 'Identity Entity Description',
@@ -211,6 +213,7 @@ class SettingsController extends Controller
             $stat = round(($stat / $numFields) * 100);
             $variables['siteSetupStat'] = $stat;
         }
+        $this->setCrumbVariables($variables);
 
         // Render the template
         return $this->renderTemplate('seomatic/dashboard/index', $variables);
@@ -221,7 +224,7 @@ class SettingsController extends Controller
      *
      * @param string $subSection
      * @param string|null $siteHandle
-     * @param null $loadFromSiteHandle
+     * @param string|null $loadFromSiteHandle
      *
      * @return Response The rendered result
      * @throws NotFoundHttpException
@@ -336,12 +339,14 @@ class SettingsController extends Controller
             (int)$variables['currentSiteId']
         );
 
+        $this->setCrumbVariables($variables);
+
         // Render the template
         return $this->renderTemplate('seomatic/settings/global/' . $subSection, $variables);
     }
 
     /**
-     * @return Response
+     * @return Response|null
      * @throws BadRequestHttpException
      * @throws MissingComponentException
      */
@@ -356,7 +361,11 @@ class SettingsController extends Controller
         $humansTemplate = $request->getParam('humansTemplate');
         $adsTemplate = $request->getParam('adsTemplate');
         $securityTemplate = $request->getParam('securityTemplate');
-
+        if (is_array($securityTemplate)) {
+            if (!str_ends_with($securityTemplate['templateString'], "\n")) {
+                $securityTemplate['templateString'] .= "\n";
+            }
+        }
         // Set the element type in the template
         $elementName = '';
 
@@ -412,7 +421,9 @@ class SettingsController extends Controller
                 Craft::error(print_r($metaBundle->metaGlobalVars->getErrors(), true), __METHOD__);
                 Craft::$app->getSession()->setError(Craft::t('app', "Couldn't save settings due to a Twig error."));
                 // Send the redirect back to the template
-                Craft::$app->getUrlManager()->setRouteParams([
+                /** @var UrlManager $urlManager */
+                $urlManager = Craft::$app->getUrlManager();
+                $urlManager->setRouteParams([
                     'editedMetaBundle' => $metaBundle,
                 ]);
 
@@ -475,6 +486,7 @@ class SettingsController extends Controller
         ];
         $this->setMultiSiteVariables($siteHandle, $siteId, $variables);
         $variables['controllerHandle'] = 'content';
+        $this->setCrumbVariables($variables);
         $variables['selectedSubnavItem'] = 'content';
         $metaBundles = Seomatic::$plugin->metaBundles->getContentMetaBundlesForSiteId($siteId);
         Seomatic::$plugin->metaBundles->deleteVestigialMetaBundles($metaBundles);
@@ -490,8 +502,8 @@ class SettingsController extends Controller
      * @param string $sourceBundleType
      * @param string $sourceHandle
      * @param string|null $siteHandle
-     * @param int|null $typeId
-     * @param null $loadFromSiteHandle
+     * @param string|int|null $typeId
+     * @param string|null $loadFromSiteHandle
      *
      * @return Response The rendered result
      * @throws NotFoundHttpException
@@ -503,14 +515,13 @@ class SettingsController extends Controller
         string $sourceHandle,
         string $siteHandle = null,
                $typeId = null,
-               $loadFromSiteHandle = null
-    ): Response
-    {
+               $loadFromSiteHandle = null,
+    ): Response {
         $variables = [];
         // @TODO: Let people choose an entry/categorygroup/product as the preview
         // Get the site to edit
         $siteId = $this->getSiteIdFromHandle($siteHandle);
-        if ($typeId !== null && is_string($typeId)) {
+        if (is_string($typeId)) {
             $typeId = (int)$typeId;
         }
         // Get the (entry) type menu
@@ -585,11 +596,12 @@ class SettingsController extends Controller
             ],
             [
                 'label' => $metaBundle->sourceName . ' · ' . $subSectionTitle,
-                'url' => UrlHelper::cpUrl("seomatic/edit-content/${subSection}/${sourceBundleType}/${sourceHandle}"),
+                'url' => UrlHelper::cpUrl("seomatic/edit-content/{$subSection}/{$sourceBundleType}/{$sourceHandle}"),
             ],
         ];
         $variables['selectedSubnavItem'] = 'content';
-        $variables['controllerHandle'] = "edit-content/${subSection}/${sourceBundleType}/${sourceHandle}";
+        $variables['controllerHandle'] = "edit-content/{$subSection}/{$sourceBundleType}/{$sourceHandle}";
+        $this->setCrumbVariables($variables);
         // Image selectors
         $variables['currentSubSection'] = $subSection;
         $bundleSettings = $metaBundle->metaBundleSettings;
@@ -639,6 +651,9 @@ class SettingsController extends Controller
         $globalsSettings = $request->getParam('metaGlobalVars');
         $bundleSettings = $request->getParam('metaBundleSettings');
         $sitemapSettings = $request->getParam('metaSitemapVars');
+        if (is_string($typeId)) {
+            $typeId = (int)$typeId;
+        }
         // Set the element type in the template
         $elementName = '';
         $seoElement = Seomatic::$plugin->seoElements->getSeoElementByMetaBundleType($sourceBundleType);
@@ -683,8 +698,8 @@ class SettingsController extends Controller
      * Site settings
      *
      * @param string $subSection
-     * @param string $siteHandle
-     * @param null $loadFromSiteHandle
+     * @param string|null $siteHandle
+     * @param string|null $loadFromSiteHandle
      *
      * @return Response The rendered result
      * @throws NotFoundHttpException
@@ -763,6 +778,7 @@ class SettingsController extends Controller
             );
         }
         $variables['elementType'] = Asset::class;
+        $this->setCrumbVariables($variables);
 
         // Render the template
         return $this->renderTemplate('seomatic/settings/site/' . $subSection, $variables);
@@ -807,7 +823,7 @@ class SettingsController extends Controller
                     $siteSettings['creator'] = $metaBundle->metaSiteVars->creator;
                 }
                 if (!empty($siteSettings['additionalSitemapUrls'])) {
-                    $siteSettings['additionalSitemapUrlsDateUpdated'] = new DateTime;
+                    $siteSettings['additionalSitemapUrlsDateUpdated'] = new DateTime();
                     Seomatic::$plugin->sitemaps->submitCustomSitemap($siteId);
                 }
                 $metaBundle->metaSiteVars->setAttributes($siteSettings);
@@ -871,6 +887,8 @@ class SettingsController extends Controller
         ];
         $variables['selectedSubnavItem'] = 'plugin';
         $variables['settings'] = Seomatic::$settings;
+        $sites = ArrayHelper::map(Craft::$app->getSites()->getAllSites(), 'id', 'name');
+        $variables['sites'] = $sites;
 
         // Render the template
         return $this->renderTemplate('seomatic/settings/plugin/_edit', $variables);
@@ -880,8 +898,8 @@ class SettingsController extends Controller
      * Tracking settings
      *
      * @param string $subSection
-     * @param string $siteHandle
-     * @param null $loadFromSiteHandle
+     * @param string|null $siteHandle
+     * @param string|null $loadFromSiteHandle
      *
      * @return Response The rendered result
      * @throws NotFoundHttpException
@@ -918,7 +936,7 @@ class SettingsController extends Controller
         // Add in the variables to the autocomplete cache so they can be accessed across requests
         $subSectionSettings = $variables['scripts'][$subSection];
         $variables['codeEditorOptions'] = [
-            TrackingVarsAutocomplete::OPTIONS_DATA_KEY => $subSectionSettings->vars
+            TrackingVarsAutocomplete::OPTIONS_DATA_KEY => $subSectionSettings->vars,
         ];
         // Plugin and section settings
         $pluginName = Seomatic::$settings->pluginName;
@@ -958,13 +976,14 @@ class SettingsController extends Controller
             ],
         ];
         $variables['selectedSubnavItem'] = 'tracking';
+        $this->setCrumbVariables($variables);
 
         // Render the template
         return $this->renderTemplate('seomatic/settings/tracking/_edit', $variables);
     }
 
     /**
-     * @return Response
+     * @return Response|null
      * @throws BadRequestHttpException
      * @throws MissingComponentException
      */
@@ -986,7 +1005,7 @@ class SettingsController extends Controller
                 foreach ($metaBundle->metaContainers as $metaContainer) {
                     if ($metaContainer::CONTAINER_TYPE === MetaScriptContainer::CONTAINER_TYPE) {
                         $data = $metaContainer->getData($scriptHandle);
-                        /** @var MetaScript $data */
+                        /** @var MetaScript|null $data */
                         if ($data) {
                             /** @var array $scriptData */
                             foreach ($scriptData as $key => $value) {
@@ -1008,7 +1027,9 @@ class SettingsController extends Controller
             if ($hasErrors) {
                 Craft::$app->getSession()->setError(Craft::t('app', "Couldn't save tracking settings due to a Twig error."));
                 // Send the redirect back to the template
-                Craft::$app->getUrlManager()->setRouteParams([
+                /** @var UrlManager $urlManager */
+                $urlManager = Craft::$app->getUrlManager();
+                $urlManager->setRouteParams([
                     'editedMetaBundle' => $metaBundle,
                 ]);
 
@@ -1056,8 +1077,10 @@ class SettingsController extends Controller
         if (!Craft::$app->getPlugins()->savePluginSettings($plugin, $settings)) {
             Craft::$app->getSession()->setError(Craft::t('app', "Couldn't save plugin settings."));
 
-            // Send the plugin back to the template
-            Craft::$app->getUrlManager()->setRouteParams([
+            // Send the redirect back to the template
+            /** @var UrlManager $urlManager */
+            $urlManager = Craft::$app->getUrlManager();
+            $urlManager->setRouteParams([
                 'plugin' => $plugin,
             ]);
 
@@ -1076,7 +1099,7 @@ class SettingsController extends Controller
     /**
      * Return a siteId from a siteHandle
      *
-     * @param string $siteHandle
+     * @param string|null $siteHandle
      *
      * @return int|null
      * @throws NotFoundHttpException
@@ -1098,10 +1121,11 @@ class SettingsController extends Controller
     }
 
     /**
-     * @param string $siteHandle
-     * @param        $siteId
-     * @param        $variables
-     *
+     * @param $siteHandle
+     * @param $siteId
+     * @param array $variables
+     * @param $element
+     * @return void
      * @throws ForbiddenHttpException
      */
     protected function setMultiSiteVariables($siteHandle, &$siteId, array &$variables, $element = null)
@@ -1113,7 +1137,6 @@ class SettingsController extends Controller
             $variables['enabledSiteIds'] = [];
             $variables['siteIds'] = [];
 
-            /** @var Site $site */
             foreach ($sites->getEditableSiteIds() as $editableSiteId) {
                 $variables['enabledSiteIds'][] = $editableSiteId;
                 $variables['siteIds'][] = $editableSiteId;
@@ -1140,8 +1163,86 @@ class SettingsController extends Controller
             Craft::$app->getIsMultiSite() &&
             count($variables['enabledSiteIds'])
         );
+    }
 
+    /**
+     * @param array $variables
+     * @return void
+     */
+    protected function setCrumbVariables(array &$variables)
+    {
+        $sites = Craft::$app->getSites();
         if ($variables['showSites']) {
+            $siteCrumbItems = [];
+            $siteGroups = Craft::$app->getSites()->getAllGroups();
+            $crumbSites = Collection::make($sites->getAllSites())
+                ->map(fn(Site $site) => ['site' => $site])
+                ->keyBy(fn(array $site) => $site['site']->id)
+                ->all();
+
+            foreach ($siteGroups as $siteGroup) {
+                $groupSites = $siteGroup->getSites();
+
+                if (empty($groupSites)) {
+                    continue;
+                }
+
+                $groupSiteItems = array_map(fn(Site $site) => [
+                    'status' => $crumbSites[$site->id]['site']->status ?? null,
+                    'label' => Craft::t('site', $site->name),
+                    'url' => UrlHelper::cpUrl("seomatic/{$variables['controllerHandle']}/$site->handle"),
+                    'hidden' => !isset($crumbSites[$site->id]),
+                    'selected' => $site->id === $variables['currentSiteId'],
+                    'attributes' => [
+                        'data' => [
+                            'site-id' => $site->id,
+                        ],
+                    ],
+                ], $groupSites);
+
+                if (count($siteGroups) > 1) {
+                    $siteCrumbItems[] = [
+                        'heading' => Craft::t('site', $siteGroup->name),
+                        'items' => $groupSiteItems,
+                        'hidden' => !ArrayHelper::contains($groupSiteItems, fn(array $item) => !$item['hidden']),
+                    ];
+                } else {
+                    array_push($siteCrumbItems, ...$groupSiteItems);
+                }
+            }
+
+            if (array_key_exists('crumbs', $variables)) {
+                $variables['crumbs'] = [
+                    [
+                        'id' => 'language-menu',
+                        'icon' => 'world',
+                        'label' => Craft::t(
+                            'site',
+                            $sites->getSiteById((int)$variables['currentSiteId'])->name
+                        ),
+                        'menu' => [
+                            'items' => $siteCrumbItems,
+                            'label' => Craft::t('site', 'Select site'),
+                        ],
+                    ],
+                    ...$variables['crumbs'],
+                ];
+            } else {
+                $variables['crumbs'] = [
+                    [
+                        'id' => 'language-menu',
+                        'icon' => 'world',
+                        'label' => Craft::t(
+                            'site',
+                            $sites->getSiteById((int)$variables['currentSiteId'])->name
+                        ),
+                        'menu' => [
+                            'items' => $siteCrumbItems,
+                            'label' => Craft::t('site', 'Select site'),
+                        ],
+                    ],
+                ];
+            }
             $variables['sitesMenuLabel'] = Craft::t(
                 'site',
                 $sites->getSiteById((int)$variables['currentSiteId'])->name
@@ -1206,9 +1307,8 @@ class SettingsController extends Controller
         string $sourceBundleType,
         string $sourceHandle,
         string $groupName,
-        array  &$variables
-    )
-    {
+        array  &$variables,
+    ) {
         $variables['textFieldSources'] = array_merge(
             ['entryGroup' => ['optgroup' => $groupName . ' Fields'], 'title' => 'Title'],
             FieldHelper::fieldsOfTypeFromSource(

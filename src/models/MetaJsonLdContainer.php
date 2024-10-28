@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -11,13 +11,12 @@
 
 namespace nystudio107\seomatic\models;
 
-use nystudio107\seomatic\Seomatic;
+use Craft;
+use craft\helpers\Html;
 use nystudio107\seomatic\base\NonceContainer;
 use nystudio107\seomatic\helpers\ImageTransform as ImageTransformHelper;
 use nystudio107\seomatic\helpers\MetaValue as MetaValueHelper;
-
-use Craft;
-
+use nystudio107\seomatic\Seomatic;
 use yii\caching\TagDependency;
 use yii\web\View;
 
@@ -31,7 +30,7 @@ class MetaJsonLdContainer extends NonceContainer
     // Constants
     // =========================================================================
 
-    const CONTAINER_TYPE = 'MetaJsonLdContainer';
+    public const CONTAINER_TYPE = 'MetaJsonLdContainer';
 
     // Public Properties
     // =========================================================================
@@ -52,50 +51,20 @@ class MetaJsonLdContainer extends NonceContainer
     public function includeMetaData($dependency)
     {
         Craft::beginProfile('MetaJsonLdContainer::includeMetaData', __METHOD__);
-        $uniqueKey = $this->handle.$dependency->tags[3];
+        $uniqueKey = $this->handle . $dependency->tags[3] . '-v2';
         $cache = Craft::$app->getCache();
         if ($this->clearCache) {
             TagDependency::invalidate($cache, $dependency->tags[3]);
         }
-        $tagData = $cache->getOrSet(
-            self::CONTAINER_TYPE.$uniqueKey,
-            function () use ($uniqueKey) {
+        [$jsonLd, $attrs] = $cache->getOrSet(
+            self::CONTAINER_TYPE . $uniqueKey,
+            function() use ($uniqueKey) {
                 Craft::info(
-                    self::CONTAINER_TYPE.' cache miss: '.$uniqueKey,
+                    self::CONTAINER_TYPE . ' cache miss: ' . $uniqueKey,
                     __METHOD__
                 );
-                $tagData = [];
-                if ($this->prepForInclusion()) {
-                    /** @var $metaJsonLdModel MetaJsonLd */
-                    foreach ($this->data as $metaJsonLdModel) {
-                        if ($metaJsonLdModel->include) {
-                            $options = $metaJsonLdModel->tagAttributes();
-                            if ($metaJsonLdModel->prepForRender($options)) {
-                                $jsonLd = $metaJsonLdModel->render([
-                                    'renderRaw'        => true,
-                                    'renderScriptTags' => false,
-                                    'array'            => false,
-                                ]);
-                                $tagData[] = [
-                                    'jsonLd' => $metaJsonLdModel,
-                                    'position' => View::POS_END
-                                ];
-                                // If `devMode` is enabled, validate the JSON-LD and output any model errors
-                                if (Seomatic::$devMode) {
-                                    $metaJsonLdModel->debugMetaItem(
-                                        'JSON-LD property: ',
-                                        [
-                                            'default' => 'error',
-                                            'google'  => 'warning',
-                                        ]
-                                    );
-                                }
-                            }
-                        }
-                    }
-                }
 
-                return $tagData;
+                return $this->renderInternal();
             },
             Seomatic::$cacheDuration,
             $dependency
@@ -103,33 +72,6 @@ class MetaJsonLdContainer extends NonceContainer
         // Invalidate the cache we just created if there were pending image transforms in it
         if (ImageTransformHelper::$pendingImageTransforms) {
             TagDependency::invalidate($cache, $dependency->tags[3]);
-        }
-        // Create a root JSON-LD object
-        $jsonLdGraph = MetaJsonLd::create('jsonLd', [
-            'graph'        => [],
-        ]);
-        $jsonLdGraph->type = null;
-        // Add the JSON-LD objects to our root JSON-LD's graph
-        $cspNonce = null;
-        foreach ($tagData as $config) {
-            $jsonLdGraph->graph[] = $config['jsonLd'];
-            if (!empty($config['jsonLd']->nonce)) {
-                $cspNonce = $config['jsonLd']->nonce;
-            }
-        }
-        // Render the JSON-LD object
-        $jsonLd = $jsonLdGraph->render([
-            'renderRaw'        => true,
-            'renderScriptTags' => false,
-            'array'            => false,
-        ]);
-
-        // Register the tags
-        $attrs = ['type' => 'application/ld+json'];
-        if (!empty($cspNonce)) {
-            $attrs = array_merge($attrs, [
-                'nonce' => $cspNonce,
-            ]);
         }
         Seomatic::$view->registerScript(
             $jsonLd,
@@ -142,10 +84,21 @@ class MetaJsonLdContainer extends NonceContainer
     /**
      * @inheritdoc
      */
+    public function render(array $params = []): string
+    {
+        [$jsonLd, $attrs] = $this->renderInternal();
+
+        return trim(Html::script($jsonLd, $attrs));
+    }
+
+    /**
+     * @inheritdoc
+     */
     public function normalizeContainerData()
     {
         parent::normalizeContainerData();
 
+        /** @var array $config */
         foreach ($this->data as $key => $config) {
             $schemaType = $config['type'] ?? $config['@type'];
             $config['key'] = $key;
@@ -155,5 +108,71 @@ class MetaJsonLdContainer extends NonceContainer
             $jsonLd->type = $config['type'] ?? $config['@type'];
             $this->data[$key] = $jsonLd;
         }
+    }
+
+    // Protected Methods
+    // =========================================================================
+
+    /**
+     * Render the JSON-LD as a graph
+     *
+     * @return array
+     */
+    protected function renderInternal(): array
+    {
+        $tagData = [];
+        if ($this->prepForInclusion()) {
+            foreach ($this->data as $metaJsonLdModel) {
+                if ($metaJsonLdModel->include) {
+                    $options = $metaJsonLdModel->tagAttributes();
+                    if ($metaJsonLdModel->prepForRender($options)) {
+                        $tagData[] = [
+                            'jsonLd' => $metaJsonLdModel,
+                            'position' => View::POS_END,
+                        ];
+                        // If `devMode` is enabled, validate the JSON-LD and output any model errors
+                        if (Seomatic::$devMode) {
+                            $metaJsonLdModel->debugMetaItem(
+                                'JSON-LD property: ',
+                                [
+                                    'default' => 'error',
+                                    'google' => 'warning',
+                                ]
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        // Create a root JSON-LD object
+        $jsonLdGraph = MetaJsonLd::create('jsonLd', [
+            'graph' => [],
+        ]);
+        $jsonLdGraph->type = null;
+        // Add the JSON-LD objects to our root JSON-LD's graph
+        $cspNonce = null;
+        foreach ($tagData as $config) {
+            $jsonLdGraph->graph[] = $config['jsonLd'];
+            if (!empty($config['jsonLd']->nonce)) {
+                $cspNonce = $config['jsonLd']->nonce;
+            }
+        }
+        // Render the JSON-LD object
+        $jsonLd = $jsonLdGraph->render([
+            'renderRaw' => true,
+            'renderScriptTags' => false,
+            'array' => false,
+        ]);
+
+        // Register the tags
+        $attrs = ['type' => 'application/ld+json'];
+        if (!empty($cspNonce)) {
+            $attrs = array_merge($attrs, [
+                'nonce' => $cspNonce,
+            ]);
+        }
+
+        return [$jsonLd, $attrs];
     }
 }

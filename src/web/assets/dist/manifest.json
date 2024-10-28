@@ -1,59 +1,48 @@
 {
-  "__plugin-vue2_normalizer-fe1301b8.js": {
-    "file": "assets/_plugin-vue2_normalizer-fe1301b8.js"
-  },
-  "src/img/Seomatic-icon.svg": {
-    "file": "assets/Seomatic-icon-c671f9a1.svg",
-    "src": "src/img/Seomatic-icon.svg"
-  },
-  "src/js/content-seo.css": {
-    "file": "assets/content-seo-1aae9b07.css",
-    "src": "src/js/content-seo.css"
+  "__plugin-vue2_normalizer-DeOsZA-U.js": {
+    "file": "assets/_plugin-vue2_normalizer-DeOsZA-U.js",
+    "name": "_plugin-vue2_normalizer"
   },
   "src/js/content-seo.js": {
-    "css": [
-      "assets/content-seo-1aae9b07.css"
-    ],
-    "file": "assets/content-seo-781835f9.js",
-    "imports": [
-      "__plugin-vue2_normalizer-fe1301b8.js"
-    ],
+    "file": "assets/content-seo-8ZgsPJJq.js",
+    "name": "content-seo",
+    "src": "src/js/content-seo.js",
     "isEntry": true,
-    "src": "src/js/content-seo.js"
+    "imports": [
+      "__plugin-vue2_normalizer-DeOsZA-U.js"
+    ],
+    "css": [
+      "assets/content-seo-aK_k3t68.css"
+    ]
   },
   "src/js/dashboard.js": {
-    "file": "assets/dashboard-2b0f6def.js",
-    "imports": [
-      "__plugin-vue2_normalizer-fe1301b8.js"
-    ],
+    "file": "assets/dashboard-DdsPmLgD.js",
+    "name": "dashboard",
+    "src": "src/js/dashboard.js",
     "isEntry": true,
-    "src": "src/js/dashboard.js"
-  },
-  "src/js/seomatic-meta.css": {
-    "file": "assets/seomatic-meta-3fbed9de.css",
-    "src": "src/js/seomatic-meta.css"
+    "imports": [
+      "__plugin-vue2_normalizer-DeOsZA-U.js"
+    ]
   },
   "src/js/seomatic-meta.js": {
-    "css": [
-      "assets/seomatic-meta-3fbed9de.css"
-    ],
-    "file": "assets/seomatic-meta-fa1da94a.js",
-    "imports": [
-      "__plugin-vue2_normalizer-fe1301b8.js"
-    ],
+    "file": "assets/seomatic-meta-BU6gP1nu.js",
+    "name": "seomatic-meta",
+    "src": "src/js/seomatic-meta.js",
     "isEntry": true,
-    "src": "src/js/seomatic-meta.js"
-  },
-  "src/js/seomatic.css": {
-    "file": "assets/seomatic-218e5bec.css",
-    "src": "src/js/seomatic.css"
+    "imports": [
+      "__plugin-vue2_normalizer-DeOsZA-U.js"
+    ],
+    "css": [
+      "assets/seomatic-meta-DleHPw7A.css"
+    ]
   },
   "src/js/seomatic.js": {
-    "css": [
-      "assets/seomatic-218e5bec.css"
-    ],
-    "file": "assets/seomatic-6a12f519.js",
+    "file": "assets/seomatic-_PdkHvD9.js",
+    "name": "seomatic",
+    "src": "src/js/seomatic.js",
     "isEntry": true,
-    "src": "src/js/seomatic.js"
+    "css": [
+      "assets/seomatic-DzAZqd8B.css"
+    ]
   }
 }

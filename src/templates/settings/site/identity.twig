@@ -4,15 +4,11 @@
 
 {% block header %}
     {{ block('pageTitle') }}
-    {{ block('contextMenu') }}
+
     <div class="flex-grow"></div>
     <div class="flex-grow"></div>
     {{ block('copyFromMenu') }}
     {{ block('actionButton') }}
-{% endblock %}
-
-{% block contextMenu %}
-    {% include "seomatic/settings/_includes/sites-menu.twig" %}
 {% endblock %}
 
 {% block copyFromMenu %}

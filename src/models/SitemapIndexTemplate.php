@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -20,6 +20,7 @@ use nystudio107\seomatic\base\SitemapInterface;
 use nystudio107\seomatic\events\RegisterSitemapsEvent;
 use nystudio107\seomatic\events\RegisterSitemapUrlsEvent;
 use nystudio107\seomatic\helpers\MetaValue as MetaValueHelper;
+use nystudio107\seomatic\helpers\Sitemap;
 use nystudio107\seomatic\Seomatic;
 use yii\base\Event;
 use yii\caching\TagDependency;
@@ -54,13 +55,13 @@ class SitemapIndexTemplate extends FrontendTemplate implements SitemapInterface
      * });
      * ```
      */
-    const EVENT_REGISTER_SITEMAPS = 'registerSitemaps';
+    public const EVENT_REGISTER_SITEMAPS = 'registerSitemaps';
 
-    const TEMPLATE_TYPE = 'SitemapIndexTemplate';
+    public const TEMPLATE_TYPE = 'SitemapIndexTemplate';
 
-    const CACHE_KEY = 'seomatic_sitemap_index';
+    public const CACHE_KEY = 'seomatic_sitemap_index';
 
-    const SITEMAP_INDEX_CACHE_TAG = 'seomatic_sitemap_index';
+    public const SITEMAP_INDEX_CACHE_TAG = 'seomatic_sitemap_index';
 
     // Static Methods
     // =========================================================================
@@ -131,7 +132,7 @@ class SitemapIndexTemplate extends FrontendTemplate implements SitemapInterface
         $groupId = $params['groupId'];
         $siteId = $params['siteId'];
         if (Seomatic::$settings->siteGroupsSeparate) {
-            /** @var SiteGroup $siteGroup */
+            /** @var SiteGroup|null $siteGroup */
             $siteGroup = Craft::$app->getSites()->getGroupById($groupId);
             if ($siteGroup === null) {
                 throw new NotFoundHttpException(Craft::t('seomatic', 'Sitemap.xml not found for groupId {groupId}', [
@@ -150,7 +151,7 @@ class SitemapIndexTemplate extends FrontendTemplate implements SitemapInterface
             ],
         ]);
 
-        return $cache->getOrSet(self::CACHE_KEY . $groupId . '.' . $siteId, function () use ($groupSiteIds, $siteId) {
+        return $cache->getOrSet(self::CACHE_KEY . $groupId . '.' . $siteId, function() use ($groupSiteIds, $siteId) {
             Craft::info(
                 'Sitemap index cache miss',
                 __METHOD__
@@ -163,7 +164,7 @@ class SitemapIndexTemplate extends FrontendTemplate implements SitemapInterface
             // One sitemap entry for each MeteBundle
             $metaBundles = Seomatic::$plugin->metaBundles->getContentMetaBundlesForSiteId($siteId);
             Seomatic::$plugin->metaBundles->pruneVestigialMetaBundles($metaBundles);
-            /** @var  $metaBundle MetaBundle */
+            /** @var MetaBundle $metaBundle */
             foreach ($metaBundles as $metaBundle) {
                 $sitemapUrls = $metaBundle->metaSitemapVars->sitemapUrls;
                 // Check to see if robots is `none` or `no index`
@@ -180,35 +181,46 @@ class SitemapIndexTemplate extends FrontendTemplate implements SitemapInterface
                 if (in_array($metaBundle->sourceSiteId, $groupSiteIds, false)
                     && $sitemapUrls
                     && $robotsEnabled) {
-                    $sitemapUrl = Seomatic::$plugin->sitemaps->sitemapUrlForBundle(
-                        $metaBundle->sourceBundleType,
-                        $metaBundle->sourceHandle,
-                        $metaBundle->sourceSiteId
-                    );
                     // Get all of the elements for this meta bundle type
                     $seoElement = Seomatic::$plugin->seoElements->getSeoElementByMetaBundleType($metaBundle->sourceBundleType);
+                    $totalElements = 0;
+                    $pageCount = 0;
+
                     if ($seoElement !== null) {
                         // Ensure `null` so that the resulting element query is correct
                         if (empty($metaBundle->metaSitemapVars->sitemapLimit)) {
                             $metaBundle->metaSitemapVars->sitemapLimit = null;
                         }
-                        $totalElements = $seoElement::sitemapElementsQuery($metaBundle)->count();
-                        if ($metaBundle->metaSitemapVars->sitemapLimit && ($totalElements > $metaBundle->metaSitemapVars->sitemapLimit)) {
-                            $totalElements = $metaBundle->metaSitemapVars->sitemapLimit;
-                        }
+
+                        $totalElements = Sitemap::getTotalElementsInSitemap($seoElement, $metaBundle);
+
+                        $pageSize = $metaBundle->metaSitemapVars->sitemapPageSize;
+                        $pageCount = (!empty($pageSize) && $pageSize > 0) ? ceil($totalElements / $pageSize) : 1;
                     }
+
                     // Only add a sitemap to the sitemap index if there's at least 1 element in the resulting sitemap
-                    if ($totalElements > 0) {
-                        $lines[] = '<sitemap>';
-                        $lines[] = '<loc>';
-                        $lines[] = Html::encode($sitemapUrl);
-                        $lines[] = '</loc>';
-                        if ($metaBundle->sourceDateUpdated !== null) {
-                            $lines[] = '<lastmod>';
-                            $lines[] = $metaBundle->sourceDateUpdated->format(DateTime::W3C);
-                            $lines[] = '</lastmod>';
+                    if ($totalElements > 0 && $pageCount > 0) {
+                        for ($page = 1; $page <= $pageCount; $page++) {
+                            $sitemapUrl = Seomatic::$plugin->sitemaps->sitemapUrlForBundle(
+                                $metaBundle->sourceBundleType,
+                                $metaBundle->sourceHandle,
+                                $metaBundle->sourceSiteId,
+                                $pageCount > 1 ? $page : 0 // No paging, if only one page
+                            );
+
+                            $lines[] = '<sitemap>';
+                            $lines[] = '<loc>';
+                            $lines[] = Html::encode($sitemapUrl);
+                            $lines[] = '</loc>';
+
+                            if ($metaBundle->sourceDateUpdated !== null) {
+                                $lines[] = '<lastmod>';
+                                $lines[] = $metaBundle->sourceDateUpdated->format(DateTime::W3C);
+                                $lines[] = '</lastmod>';
+                            }
+
+                            $lines[] = '</sitemap>';
                         }
-                        $lines[] = '</sitemap>';
                     }
                 }
             }
@@ -274,7 +286,7 @@ class SitemapIndexTemplate extends FrontendTemplate implements SitemapInterface
                     // Find the most recent date
                     $dateUpdated = !empty($additionalSitemap['lastmod'])
                         ? $additionalSitemap['lastmod']
-                        : new DateTime;
+                        : new DateTime();
                     $lines[] = '<lastmod>';
                     $lines[] = $dateUpdated->format(DateTime::W3C);
                     $lines[] = '</lastmod>';
@@ -316,7 +328,7 @@ class SitemapIndexTemplate extends FrontendTemplate implements SitemapInterface
             $lines[] = '</loc>';
             // Find the most recent date
             $dateUpdated = $metaBundle->metaSiteVars->additionalSitemapUrlsDateUpdated
-                ?? new DateTime;
+                ?? new DateTime();
             foreach ($additionalSitemapUrls as $additionalSitemapUrl) {
                 if (!empty($additionalSitemapUrl['lastmod'])) {
                     if ($additionalSitemapUrl['lastmod'] > $dateUpdated) {

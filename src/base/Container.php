@@ -1,6 +1,6 @@
 <?php
 /**
- * SEOmatic plugin for Craft CMS 3.x
+ * SEOmatic plugin for Craft CMS
  *
  * A turnkey SEO implementation for Craft CMS that is comprehensive, powerful,
  * and flexible
@@ -35,12 +35,11 @@ abstract class Container extends FluentModel implements ContainerInterface
      *
      * @param array $config
      *
-     * @return null|Container
+     * @return static
      */
     public static function create(array $config = [])
     {
         $className = static::class;
-        /** @var Container $model */
         $model = new $className($config);
         $model->normalizeContainerData();
 
